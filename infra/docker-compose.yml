@@ -1,0 +1,72 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: cvp-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: cvp
+      POSTGRES_PASSWORD: cvp_dev_pass
+      POSTGRES_DB: cvplatform
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  mongo:
+    image: mongo:7
+    container_name: cvp-mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: cvp
+      MONGO_INITDB_ROOT_PASSWORD: cvp_dev_pass
+      MONGO_INITDB_DATABASE: cvplatform
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: cvp-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: cvp
+      RABBITMQ_DEFAULT_PASS: cvp_dev_pass
+    ports:
+      - "5672:5672"      # AMQP
+      - "15672:15672"    # Management UI
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+
+  redis:
+    image: redis:7-alpine
+    container_name: cvp-redis
+    restart: unless-stopped
+    command: ["redis-server", "--requirepass", "cvp_dev_pass"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  minio:
+    image: minio/minio:latest
+    container_name: cvp-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: cvp
+      MINIO_ROOT_PASSWORD: cvp_dev_pass
+    ports:
+      - "9000:9000"      # S3 API
+      - "9001:9001"      # Console UI
+    volumes:
+      - minio_data:/data
+
+volumes:
+  postgres_data:
+  mongo_data:
+  rabbitmq_data:
+  redis_data:
+  minio_data:

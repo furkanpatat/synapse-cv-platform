@@ -1,0 +1,55 @@
+# ============ OS / Editor ============
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ============ Env ============
+.env
+.env.local
+.env.*.local
+infra/.env
+
+# ============ Logs ============
+*.log
+logs/
+
+# ============ Backend (Java / Maven) ============
+backend/target/
+backend/.mvn/wrapper/maven-wrapper.jar
+backend/HELP.md
+backend/*.iml
+
+# ============ Frontend (Next.js / Node) ============
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/build/
+frontend/.turbo/
+frontend/next-env.d.ts
+frontend/coverage/
+
+# ============ AI Service (Python) ============
+ai-service/.venv/
+ai-service/__pycache__/
+ai-service/**/__pycache__/
+ai-service/*.pyc
+ai-service/.pytest_cache/
+ai-service/.mypy_cache/
+
+# ============ Docker / Data ============
+infra/data/
+infra/volumes/
+
+# ============ Uploads ============
+uploads/
+*.pdf
+*.docx
+!docs/**/*.pdf
+!docs/**/*.docx
+
+# ============ Build / Cache ============
+dist/
+.cache/
