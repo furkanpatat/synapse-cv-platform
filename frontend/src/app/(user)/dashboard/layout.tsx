@@ -20,7 +20,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         title="Kullanıcı Paneli"
         links={[
           { href: "/dashboard", label: "Ana Sayfa" },
+          { href: "/dashboard/profile", label: "Profil" },
           { href: "/dashboard/cv", label: "CV" },
+          { href: "/dashboard/analysis", label: "AI Analiz" },
           { href: "/dashboard/jobs", label: "İlanlar" },
           { href: "/dashboard/applications", label: "Başvurularım" },
           { href: "/dashboard/messages", label: "Mesajlar" },

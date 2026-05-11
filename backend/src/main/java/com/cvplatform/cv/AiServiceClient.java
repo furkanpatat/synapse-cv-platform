@@ -50,6 +50,24 @@ public class AiServiceClient {
                 .body(ParseResponse.class);
     }
 
+    public Map<String, Object> runAnalysis(UUID userId, String githubUsername,
+                                           List<String> cvSkills) {
+        Map<String, Object> req = Map.of(
+                "userId", userId.toString(),
+                "githubUsername", githubUsername,
+                "cvSkills", cvSkills
+        );
+        log.info("Calling ai-service /v1/analysis/run for user {}, github {}", userId, githubUsername);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> body = restClient.post()
+                .uri("/v1/analysis/run")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(req)
+                .retrieve()
+                .body(Map.class);
+        return body;
+    }
+
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record ParseResponse(
             String rawText,
