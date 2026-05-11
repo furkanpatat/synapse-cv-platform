@@ -33,6 +33,7 @@ public class StorageService {
                     .contentType(file.getContentType())
                     .build());
         } catch (Exception ex) {
+            log.error("MinIO upload failed for object {}: {}", objectName, ex.toString(), ex);
             throw new IOException("MinIO upload failed: " + ex.getMessage(), ex);
         }
         return objectName;
