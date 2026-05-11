@@ -49,7 +49,7 @@ def extract_structured(raw_text: str) -> dict:
 
     genai.configure(api_key=settings.gemini_api_key)
     model = genai.GenerativeModel(
-        "gemini-1.5-flash",
+        "gemini-2.5-flash",
         system_instruction=SYSTEM_PROMPT,
         generation_config={"response_mime_type": "application/json"},
     )

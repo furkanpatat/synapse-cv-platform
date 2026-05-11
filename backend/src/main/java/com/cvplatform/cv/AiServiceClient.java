@@ -4,9 +4,11 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -18,12 +20,18 @@ public class AiServiceClient {
     private final RestClient restClient;
 
     public AiServiceClient(RestClient.Builder builder,
-                           @Value("${app.ai-service.base-url}") String baseUrl) {
+                           @Value("${app.ai-service.base-url}") String baseUrl,
+                           @Value("${app.ai-service.timeout-seconds:120}") long timeoutSeconds) {
         // IMPORTANT: use the injected builder bean so Spring Boot's auto-configured
         // Jackson HttpMessageConverters are wired in. RestClient.builder() (static)
         // returns a barebones builder without converters → request bodies are dropped.
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(Duration.ofSeconds(10));
+        factory.setReadTimeout(Duration.ofSeconds(timeoutSeconds));
+
         this.restClient = builder
                 .baseUrl(baseUrl)
+                .requestFactory(factory)
                 .defaultHeader("Accept", MediaType.APPLICATION_JSON_VALUE)
                 .build();
     }
