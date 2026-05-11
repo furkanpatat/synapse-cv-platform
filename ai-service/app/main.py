@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
+from app.cv.routes import router as cv_router
 
 app = FastAPI(
     title="CV Platform — AI Service",
@@ -18,6 +19,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+app.include_router(cv_router)
 
 
 @app.get("/ping")

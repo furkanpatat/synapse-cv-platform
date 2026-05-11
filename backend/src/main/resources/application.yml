@@ -54,6 +54,14 @@ spring:
       mail.smtp.starttls.enable: false
 
 app:
+  storage:
+    endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+    access-key: ${MINIO_ROOT_USER:cvp}
+    secret-key: ${MINIO_ROOT_PASSWORD:cvp_dev_pass}
+    bucket: ${MINIO_BUCKET:cv-files}
+  ai-service:
+    base-url: ${AI_SERVICE_BASE_URL:http://localhost:8000}
+    timeout-seconds: 60
   jwt:
     secret: ${JWT_SECRET:dev-secret-change-me-in-prod-must-be-long-enough-for-hmac-sha256}
     access-expiration-ms: ${JWT_ACCESS_EXPIRATION_MS:900000}
