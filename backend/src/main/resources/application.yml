@@ -8,7 +8,7 @@ spring:
     name: cv-platform-backend
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/cvplatform
+    url: jdbc:postgresql://localhost:5433/cvplatform
     username: ${POSTGRES_USER:cvp}
     password: ${POSTGRES_PASSWORD:cvp_dev_pass}
     driver-class-name: org.postgresql.Driver

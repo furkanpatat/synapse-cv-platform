@@ -40,7 +40,7 @@ docker compose up -d
 ```
 
 Servisler:
-- Postgres → `localhost:5432`
+- Postgres → `localhost:5433` (native Postgres 5432'de olduğu için 5433'e taşındı)
 - MongoDB → `localhost:27017`
 - RabbitMQ UI → http://localhost:15672 (cvp / cvp_dev_pass)
 - Redis → `localhost:6379`
