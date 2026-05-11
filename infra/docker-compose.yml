@@ -48,6 +48,14 @@ services:
     volumes:
       - redis_data:/data
 
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: cvp-mailhog
+    restart: unless-stopped
+    ports:
+      - "1025:1025"      # SMTP
+      - "8025:8025"      # Web UI
+
   minio:
     image: minio/minio:latest
     container_name: cvp-minio
