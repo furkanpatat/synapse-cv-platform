@@ -52,7 +52,7 @@ api.interceptors.response.use(
       || url.includes("/v1/auth/register")
       || url.includes("/v1/auth/refresh");
 
-    if (status === 401 && !original._retry && !isAuthEndpoint) {
+    if ((status === 401 || status === 403) && !original._retry && !isAuthEndpoint) {
       original._retry = true;
       if (!refreshing) refreshing = refreshTokens();
       const newToken = await refreshing;
