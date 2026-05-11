@@ -127,6 +127,13 @@
             <version>1.6.2</version>
         </dependency>
 
+        <!-- Hibernate JSONB support -->
+        <dependency>
+            <groupId>io.hypersistence</groupId>
+            <artifactId>hypersistence-utils-hibernate-63</artifactId>
+            <version>3.9.0</version>
+        </dependency>
+
         <!-- MinIO (S3-compatible storage) -->
         <dependency>
             <groupId>io.minio</groupId>
