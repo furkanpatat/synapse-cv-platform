@@ -14,4 +14,8 @@ export const adminApi = {
     api
       .put<AdminCompanyDto>(`/v1/admin/companies/${companyId}/verify`, { verified })
       .then((r) => r.data),
+  setPlan: (userId: string, plan: "FREE" | "PREMIUM" | "ENTERPRISE") =>
+    api
+      .put<AdminUserDto>(`/v1/admin/users/${userId}/plan`, { plan })
+      .then((r) => r.data),
 };

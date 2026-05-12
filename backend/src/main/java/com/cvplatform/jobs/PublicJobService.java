@@ -30,6 +30,7 @@ public class PublicJobService {
     private final CvDocumentRepository cvRepository;
     private final AnalysisReportRepository analysisRepository;
     private final UserRepository userRepository;
+    private final com.cvplatform.subscription.QuotaService quotaService;
 
     public Page<JobResponse> listActive(int page, int size) {
         Page<JobPosting> jobs = jobRepository.findAllByStatus(
@@ -54,6 +55,7 @@ public class PublicJobService {
     @Transactional
     public ApplicationResponse apply(UUID userId, ApplyRequest req) {
         User user = userRepository.findById(userId).orElseThrow();
+        quotaService.checkApplyQuota(user);
         JobPosting job = jobRepository.findById(req.jobId())
                 .orElseThrow(() -> ApiException.notFound("JOB_NOT_FOUND", "Job not found"));
         if (job.getStatus() != JobStatus.ACTIVE) {

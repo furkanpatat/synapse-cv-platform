@@ -21,6 +21,7 @@ public class CompanyJobService {
     private final JobPostingRepository jobRepository;
     private final CompanyRepository companyRepository;
     private final ApplicationRepository applicationRepository;
+    private final com.cvplatform.subscription.QuotaService quotaService;
 
     public List<JobResponse> listMyJobs(User owner) {
         Company company = ownedCompany(owner);
@@ -36,6 +37,12 @@ public class CompanyJobService {
         if (requested == JobStatus.ACTIVE && !company.isVerified()) {
             throw ApiException.forbidden("COMPANY_NOT_VERIFIED",
                     "Your company must be verified by an admin before publishing jobs");
+        }
+        if (requested == JobStatus.ACTIVE) {
+            long currentActive = jobRepository
+                    .findAllByCompany_IdOrderByCreatedAtDesc(company.getId()).stream()
+                    .filter(j -> j.getStatus() == JobStatus.ACTIVE).count();
+            quotaService.checkCompanyActiveJobQuota(owner, currentActive);
         }
         JobPosting job = JobPosting.builder()
                 .company(company)
@@ -65,6 +72,12 @@ public class CompanyJobService {
         if (req.status() == JobStatus.ACTIVE && !job.getCompany().isVerified()) {
             throw ApiException.forbidden("COMPANY_NOT_VERIFIED",
                     "Your company must be verified by an admin before publishing jobs");
+        }
+        if (req.status() == JobStatus.ACTIVE && job.getStatus() != JobStatus.ACTIVE) {
+            long currentActive = jobRepository
+                    .findAllByCompany_IdOrderByCreatedAtDesc(job.getCompany().getId()).stream()
+                    .filter(j -> j.getStatus() == JobStatus.ACTIVE).count();
+            quotaService.checkCompanyActiveJobQuota(owner, currentActive);
         }
         if (req.title() != null) job.setTitle(req.title());
         if (req.description() != null) job.setDescription(req.description());

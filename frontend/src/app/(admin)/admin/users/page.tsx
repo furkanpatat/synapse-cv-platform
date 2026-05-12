@@ -34,6 +34,16 @@ export default function AdminUsersPage() {
     }
   };
 
+  const handlePlanChange = async (u: AdminUserDto, plan: AdminUserDto["subscriptionType"]) => {
+    try {
+      const updated = await adminApi.setPlan(u.id, plan);
+      setUsers((prev) => prev.map((x) => (x.id === u.id ? updated : x)));
+    } catch (err) {
+      const e = err as AxiosError<ApiError>;
+      setError(e.response?.data?.message ?? "Plan güncellenemedi");
+    }
+  };
+
   const filtered = users.filter((u) => {
     if (!search) return true;
     const q = search.toLowerCase();
@@ -90,7 +100,19 @@ export default function AdminUsersPage() {
                     {u.role}
                   </span>
                 </td>
-                <td className="px-4 py-2">{u.subscriptionType}</td>
+                <td className="px-4 py-2">
+                  <select
+                    value={u.subscriptionType}
+                    onChange={(e) =>
+                      handlePlanChange(u, e.target.value as AdminUserDto["subscriptionType"])
+                    }
+                    className="rounded border border-gray-300 bg-white px-2 py-1 text-xs dark:border-gray-700 dark:bg-gray-900"
+                  >
+                    <option value="FREE">FREE</option>
+                    <option value="PREMIUM">PREMIUM</option>
+                    <option value="ENTERPRISE">ENTERPRISE</option>
+                  </select>
+                </td>
                 <td className="px-4 py-2">
                   {u.banned ? (
                     <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs text-red-700 dark:bg-red-900 dark:text-red-200">

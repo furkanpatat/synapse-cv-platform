@@ -3,6 +3,7 @@ package com.cvplatform.admin;
 import com.cvplatform.admin.dto.AdminCompanyDto;
 import com.cvplatform.admin.dto.AdminStats;
 import com.cvplatform.admin.dto.AdminUserDto;
+import com.cvplatform.user.SubscriptionType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -35,6 +36,13 @@ public class AdminController {
                                             @RequestBody Map<String, Boolean> body) {
         boolean banned = body.getOrDefault("banned", true);
         return ResponseEntity.ok(service.setBanned(id, banned));
+    }
+
+    @PutMapping("/users/{id}/plan")
+    public ResponseEntity<AdminUserDto> setPlan(@PathVariable UUID id,
+                                                @RequestBody Map<String, String> body) {
+        SubscriptionType plan = SubscriptionType.valueOf(body.get("plan"));
+        return ResponseEntity.ok(service.setPlan(id, plan));
     }
 
     @GetMapping("/companies")

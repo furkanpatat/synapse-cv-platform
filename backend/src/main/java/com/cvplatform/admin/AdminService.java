@@ -10,6 +10,7 @@ import com.cvplatform.jobs.ApplicationRepository;
 import com.cvplatform.jobs.JobPostingRepository;
 import com.cvplatform.jobs.JobStatus;
 import com.cvplatform.user.Role;
+import com.cvplatform.user.SubscriptionType;
 import com.cvplatform.user.User;
 import com.cvplatform.user.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -69,6 +70,14 @@ public class AdminService {
             throw ApiException.forbidden("CANNOT_BAN_ADMIN", "Admin accounts cannot be banned");
         }
         user.setBanned(banned);
+        return AdminUserDto.from(userRepository.save(user));
+    }
+
+    @Transactional
+    public AdminUserDto setPlan(UUID userId, SubscriptionType plan) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> ApiException.notFound("USER_NOT_FOUND", "User not found"));
+        user.setSubscriptionType(plan);
         return AdminUserDto.from(userRepository.save(user));
     }
 

@@ -4,6 +4,7 @@ import com.cvplatform.common.ApiException;
 import com.cvplatform.cv.AiServiceClient;
 import com.cvplatform.cv.CvDocument;
 import com.cvplatform.cv.CvDocumentRepository;
+import com.cvplatform.subscription.QuotaService;
 import com.cvplatform.user.User;
 import com.cvplatform.user.UserRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -31,11 +32,13 @@ public class AnalysisService {
     private final UserRepository userRepository;
     private final AiServiceClient aiServiceClient;
     private final ObjectMapper objectMapper;
+    private final QuotaService quotaService;
 
     @Transactional
     public AnalysisReport startAnalysis(UUID userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> ApiException.notFound("USER_NOT_FOUND", "User not found"));
+        quotaService.checkAnalysisQuota(user);
         String githubUsername = extractGithubUsername(user.getGithubUrl());
         if (githubUsername == null) {
             throw ApiException.badRequest("GITHUB_NOT_SET",
