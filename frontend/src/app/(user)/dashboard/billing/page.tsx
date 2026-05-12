@@ -1,9 +1,68 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
+import { Sparkles, Check, X, Crown, Zap, Wand2, Brain } from "lucide-react";
 
 import { billingApi } from "@/lib/billing-api";
 import type { BillingMeResponse, Usage } from "@/types/billing";
+
+type PlanKey = "FREE" | "PREMIUM" | "ENTERPRISE";
+
+const PLANS: {
+  key: PlanKey;
+  name: string;
+  price: string;
+  cycle: string;
+  features: Array<{ on: boolean; text: string }>;
+  cta: string;
+}[] = [
+  {
+    key: "FREE",
+    name: "FREE",
+    price: "₺0",
+    cycle: "ücretsiz",
+    features: [
+      { on: true, text: "Aylık 1 AI yetkinlik analizi" },
+      { on: true, text: "5 aktif başvuru" },
+      { on: true, text: "CV parse + GitHub bağlama" },
+      { on: false, text: "PDF rapor indirme" },
+      { on: false, text: "Şirketlere Premium rozeti" },
+      { on: false, text: "Öncelikli destek" },
+    ],
+    cta: "Mevcut plan",
+  },
+  {
+    key: "PREMIUM",
+    name: "PREMIUM",
+    price: "₺199",
+    cycle: "/ay",
+    features: [
+      { on: true, text: "Sınırsız AI yetkinlik analizi" },
+      { on: true, text: "Sınırsız aktif başvuru" },
+      { on: true, text: "PDF rapor indirme" },
+      { on: true, text: "Şirketlere Premium rozeti" },
+      { on: true, text: "Mesajlaşmada öncelik" },
+      { on: false, text: "Şirket yönetim paneli" },
+    ],
+    cta: "Premium'a yükselt",
+  },
+  {
+    key: "ENTERPRISE",
+    name: "ENTERPRISE",
+    price: "₺1.499",
+    cycle: "/ay",
+    features: [
+      { on: true, text: "Sınırsız her şey" },
+      { on: true, text: "Şirket yönetim paneli" },
+      { on: true, text: "Toplu aday analizi" },
+      { on: true, text: "API erişimi" },
+      { on: true, text: "Özel hesap yöneticisi" },
+      { on: true, text: "SLA + öncelikli destek" },
+    ],
+    cta: "Bizimle görüş",
+  },
+];
 
 export default function BillingPage() {
   const [data, setData] = useState<BillingMeResponse | null>(null);
@@ -16,115 +75,220 @@ export default function BillingPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <p className="text-sm text-gray-500">Yükleniyor...</p>;
+  if (loading) return <p className="text-sm text-text-muted">Yükleniyor...</p>;
   if (!data) return null;
 
   return (
-    <div className="max-w-3xl space-y-6">
-      <header>
-        <h1 className="text-2xl font-bold">Abonelik & Kullanım</h1>
-        <p className="text-sm text-gray-600 dark:text-gray-400">
-          Mevcut planın ve bu aydaki kullanımın.
-        </p>
-      </header>
-
-      <div className="rounded-lg border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-xs uppercase text-gray-500">Mevcut Plan</p>
-            <p className="mt-1 text-3xl font-bold">
-              {data.plan}{" "}
-              {data.isPremium && (
-                <span className="ml-2 rounded-full bg-yellow-200 px-2 py-0.5 text-xs text-yellow-900">
-                  ⭐ Premium
-                </span>
-              )}
-            </p>
+    <>
+      <div className="page-head">
+        <div>
+          <div className="page-head__crumbs">
+            <Crown size={12} /> ABONELİK
           </div>
-        </div>
-        <div className="mt-4 grid gap-4 md:grid-cols-2">
-          <UsageBar
-            label="AI Yetkinlik Analizi (son 30 gün)"
-            usage={data.aiAnalysisLast30d}
-          />
-          <UsageBar label="Aktif Başvuru" usage={data.activeApplications} />
+          <h1 className="page-head__title">
+            <span className="ai-text">Plan</span> ve kullanımın
+          </h1>
+          <p className="page-head__sub mt-1.5">
+            Mevcut planın, bu aydaki sınırların ve PREMIUM avantajları.
+          </p>
         </div>
       </div>
 
-      <PlanCompareTable plan={data.plan} />
-
-      {!data.isPremium && (
-        <div className="rounded-lg border border-brand/30 bg-brand/5 p-6">
-          <h3 className="mb-2 text-lg font-semibold">⭐ PREMIUM'a Yükselt</h3>
-          <p className="text-sm text-gray-700 dark:text-gray-300">
-            Sınırsız AI analizi, sınırsız başvuru, PDF rapor indirme ve şirketlere
-            görünen Premium rozeti.
-          </p>
-          <p className="mt-3 text-xs text-gray-500">
-            Ödeme entegrasyonu Faz 9'da Iyzico ile aktif olacak. Şu an admin
-            üzerinden manuel yükseltme yapılır.
+      {/* Current plan hero */}
+      <div className="hello-grid mb-8">
+        <div className="hello-card">
+          <div className="page-head__crumbs mb-3">MEVCUT PLAN</div>
+          <div className="flex items-center gap-3">
+            <h2 className="text-[40px] font-semibold leading-none tracking-[-0.04em]">
+              {data.plan}
+            </h2>
+            {data.isPremium && (
+              <span className="pill pill--ai" style={{ fontSize: 11 }}>
+                <Sparkles size={11} /> AKTİF
+              </span>
+            )}
+          </div>
+          <p className="page-head__sub mt-3 max-w-md">
+            {data.isPremium
+              ? "PREMIUM erişimin var — sınırsız analiz, PDF indirme ve şirketlere görünen Premium rozet."
+              : "FREE planındasın. Sınırlarını yükseltmek için PREMIUM'a geçebilirsin."}
           </p>
         </div>
-      )}
-    </div>
-  );
-}
 
-function UsageBar({ label, usage }: { label: string; usage: Usage }) {
-  const unlimited = usage.limit < 0;
-  const pct = unlimited ? 0 : Math.min(100, (usage.current / usage.limit) * 100);
-  const exceeded = !unlimited && usage.current >= usage.limit;
-  return (
-    <div>
-      <p className="text-sm font-medium">{label}</p>
-      <p className="text-xs text-gray-500">
-        {unlimited
-          ? `${usage.current} kullanıldı · Sınırsız`
-          : `${usage.current} / ${usage.limit}`}
+        {/* Usage panel */}
+        <div className="score-widget">
+          <div className="score-widget__inner">
+            <div className="mb-4 flex items-center gap-2 font-mono text-[10.5px] uppercase tracking-[0.16em] text-text-muted">
+              <Zap size={12} className="text-ai-2" /> BU AYIN KULLANIMI
+            </div>
+            <div className="flex flex-col gap-4">
+              <UsageBar
+                label="AI yetkinlik analizi"
+                usage={data.aiAnalysisLast30d}
+                ai
+              />
+              <UsageBar label="Aktif başvuru" usage={data.activeApplications} />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Plan compare grid */}
+      <div className="mb-2 flex items-center justify-between">
+        <h3 className="text-[13px] font-medium">Plan karşılaştırma</h3>
+      </div>
+      <div className="plan-grid mb-8 mt-6">
+        {PLANS.map((p) => {
+          const featured = p.key === "PREMIUM";
+          const isCurrent = data.plan === p.key;
+          const inner = (
+            <>
+              {featured && (
+                <span className="plan-card__badge">Tavsiye edilen</span>
+              )}
+              <span className="plan-card__name">{p.name}</span>
+              <div className="plan-card__price">
+                <span className="plan-card__price-num">{p.price}</span>
+                <span className="plan-card__price-cycle">{p.cycle}</span>
+              </div>
+              <ul className="mt-6 mb-7 flex flex-col">
+                {p.features.map((f) => (
+                  <li
+                    key={f.text}
+                    className={`plan-feature ${f.on ? "" : "plan-feature--off"}`}
+                  >
+                    {f.on ? (
+                      <Check size={14} className="text-emerald-400" />
+                    ) : (
+                      <X size={14} className="text-text-muted" />
+                    )}
+                    {f.text}
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-auto">
+                {isCurrent ? (
+                  <button
+                    disabled
+                    className="btn btn--outline w-full disabled:opacity-60"
+                  >
+                    Aktif planın
+                  </button>
+                ) : featured ? (
+                  <button className="btn btn--ai w-full">
+                    <Sparkles size={14} /> {p.cta}
+                  </button>
+                ) : (
+                  <button className="btn btn--outline w-full">{p.cta}</button>
+                )}
+              </div>
+            </>
+          );
+          return featured ? (
+            <div key={p.key} className="plan-card plan-card--featured">
+              <div className="plan-card__inner">{inner}</div>
+            </div>
+          ) : (
+            <div key={p.key} className="plan-card">
+              {inner}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Premium feature tiles */}
+      <div className="mb-2">
+        <h3 className="text-[13px] font-medium">PREMIUM ile gelen özellikler</h3>
+      </div>
+      <div className="qa-grid mb-8">
+        <PremiumTile
+          icon={<Sparkles size={18} />}
+          title="Sınırsız AI analizi"
+          desc="İstediğin kadar yeniden çalıştır, her güncellemede skorunu izle."
+        />
+        <PremiumTile
+          icon={<Wand2 size={18} />}
+          title="PDF rapor indir"
+          desc="Mülakatlarda paylaşılabilir profesyonel PDF rapor."
+        />
+        <PremiumTile
+          icon={<Brain size={18} />}
+          title="Akıllı eşleşme"
+          desc="Şirket aramalarında üst sıralarda görün, premium rozetiyle öne çık."
+        />
+      </div>
+
+      <p className="font-mono text-[11px] text-text-muted">
+        Ödeme entegrasyonu yakında. Şu an admin üzerinden plan yükseltilebilir.{" "}
+        <Link href="/dashboard/analysis" className="text-text border-b border-border-strong">
+          Analize geri dön
+        </Link>
       </p>
-      {!unlimited && (
-        <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-800">
-          <div
-            className={exceeded ? "h-full bg-red-500" : "h-full bg-brand"}
-            style={{ width: `${pct}%` }}
-          />
-        </div>
-      )}
+    </>
+  );
+}
+
+function UsageBar({
+  label,
+  usage,
+  ai,
+}: {
+  label: string;
+  usage: Usage;
+  ai?: boolean;
+}) {
+  const unlimited = usage.limit < 0;
+  const pct = unlimited ? 100 : Math.min(100, (usage.current / usage.limit) * 100);
+  const [animated, setAnimated] = useState(0);
+  useEffect(() => {
+    const id = setTimeout(() => setAnimated(pct), 300);
+    return () => clearTimeout(id);
+  }, [pct]);
+
+  const fillClass = unlimited
+    ? "usage__fill--ai"
+    : ai
+      ? "usage__fill--ai"
+      : pct >= 85
+        ? "usage__fill--danger"
+        : pct >= 60
+          ? "usage__fill--warn"
+          : "";
+
+  return (
+    <div className="usage">
+      <div className="usage__head">
+        <span className="usage__title">{label}</span>
+        <span className="usage__count">
+          {unlimited
+            ? `${usage.current} · ∞`
+            : `${usage.current} / ${usage.limit}`}
+        </span>
+      </div>
+      <div className="usage__track">
+        <div
+          className={`usage__fill ${fillClass}`}
+          style={{ width: `${animated}%` }}
+        />
+      </div>
     </div>
   );
 }
 
-function PlanCompareTable({ plan }: { plan: string }) {
-  const rows = [
-    { feature: "AI Yetkinlik Analizi", free: "Ayda 1", premium: "Sınırsız" },
-    { feature: "Aktif başvuru", free: "5", premium: "Sınırsız" },
-    { feature: "PDF rapor indirme", free: "—", premium: "✓" },
-    { feature: "Premium rozet (şirkete görünür)", free: "—", premium: "✓" },
-  ];
+function PremiumTile({
+  icon,
+  title,
+  desc,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  desc: string;
+}) {
   return (
-    <div className="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
-      <table className="w-full text-sm">
-        <thead className="bg-gray-50 text-xs uppercase text-gray-500 dark:bg-gray-800">
-          <tr>
-            <th className="px-4 py-2 text-left">Özellik</th>
-            <th className={`px-4 py-2 text-left ${plan === "FREE" ? "font-bold text-brand" : ""}`}>
-              FREE {plan === "FREE" && "(senin planın)"}
-            </th>
-            <th className={`px-4 py-2 text-left ${plan !== "FREE" ? "font-bold text-brand" : ""}`}>
-              PREMIUM {plan !== "FREE" && "(senin planın)"}
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.feature} className="border-t border-gray-100 dark:border-gray-800">
-              <td className="px-4 py-2 font-medium">{r.feature}</td>
-              <td className="px-4 py-2 text-gray-600 dark:text-gray-400">{r.free}</td>
-              <td className="px-4 py-2 text-gray-600 dark:text-gray-400">{r.premium}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="qa qa--ai cursor-default">
+      <div className="qa__icon">{icon}</div>
+      <div className="qa__title">{title}</div>
+      <div className="qa__sub">{desc}</div>
     </div>
   );
 }

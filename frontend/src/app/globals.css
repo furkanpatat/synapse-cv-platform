@@ -1703,3 +1703,279 @@ body {
   background: var(--surface-2);
 }
 .gh-lang-bar > div { transition: width 1.2s cubic-bezier(0.2,0.8,0.2,1); }
+
+/* =====================================================
+   Jobs list + detail + Billing
+   ===================================================== */
+.filter-bar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 12px;
+  border-radius: var(--radius);
+  background: color-mix(in oklab, var(--surface) 88%, transparent);
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  border: 1px solid var(--border);
+  margin-bottom: 18px;
+}
+.filter-bar__input {
+  flex: 1;
+  min-width: 220px;
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-size: 13.5px;
+  color: var(--text);
+}
+.filter-bar__input input,
+.filter-bar select {
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font: inherit;
+  outline: none;
+  width: 100%;
+}
+.filter-bar select {
+  padding: 9px 12px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-size: 13px;
+  min-width: 140px;
+}
+
+/* AI-recommended carousel */
+.ai-carousel {
+  position: relative;
+  padding: 16px;
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(ellipse at 0% 0%, hsla(calc(280 + var(--ai-hue)), 88%, 67%, 0.08), transparent 60%),
+    radial-gradient(ellipse at 100% 100%, hsla(calc(190 + var(--ai-hue)), 85%, 56%, 0.08), transparent 60%),
+    var(--surface);
+  border: 1px solid var(--border);
+  margin-bottom: 24px;
+  overflow: hidden;
+}
+.ai-carousel__head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 12px;
+}
+.ai-carousel__row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+/* Job card */
+.job-card {
+  position: relative;
+  padding: 18px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  transition: border-color 160ms, transform 160ms, box-shadow 160ms;
+  display: flex; flex-direction: column;
+  gap: 12px;
+  cursor: pointer;
+}
+.job-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-2);
+}
+.job-card--ai {
+  background: linear-gradient(var(--surface), var(--surface)) padding-box,
+    linear-gradient(110deg,
+      hsl(calc(280 + var(--ai-hue)) 88% 60%),
+      hsl(calc(218 + var(--ai-hue)) 92% 55%),
+      hsl(calc(190 + var(--ai-hue)) 85% 50%)) border-box;
+  border: 1px solid transparent;
+  animation: brightness-pulse 3s ease-in-out infinite;
+}
+.job-card__head {
+  display: flex; align-items: flex-start; gap: 12px;
+}
+.job-card__logo {
+  width: 40px; height: 40px;
+  border-radius: 10px;
+  display: grid; place-items: center;
+  color: white;
+  font-weight: 600;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+.job-card__title { font-size: 15px; font-weight: 500; letter-spacing: -0.01em; }
+.job-card__co { font-size: 12.5px; color: var(--text-muted); font-family: var(--font-geist-mono), monospace; margin-top: 2px; }
+
+/* Match ring (used in job cards + sticky apply card) */
+.match-ring {
+  position: relative;
+  flex-shrink: 0;
+  display: grid; place-items: center;
+}
+.match-ring__bg {
+  position: absolute; inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(
+    hsl(calc(218 + var(--ai-hue)) 92% 62%) 0%,
+    hsl(calc(190 + var(--ai-hue)) 85% 56%) calc(var(--m, 0) * 1%),
+    var(--surface-3) calc(var(--m, 0) * 1%) 100%);
+  mask: radial-gradient(closest-side, transparent 65%, black 66%, black 92%, transparent 93%);
+  -webkit-mask: radial-gradient(closest-side, transparent 65%, black 66%, black 92%, transparent 93%);
+  transition: --m 1.2s cubic-bezier(0.2,0.8,0.2,1);
+}
+.match-ring__num {
+  position: relative;
+  font-family: var(--font-geist-mono), monospace;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+/* Sticky apply card (gradient border + animated) */
+.apply-card {
+  position: sticky;
+  top: 24px;
+  padding: 2px;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(135deg,
+    hsla(calc(280 + var(--ai-hue)), 88%, 67%, calc(0.55 * var(--ai-intensity))),
+    hsla(calc(218 + var(--ai-hue)), 92%, 62%, calc(0.55 * var(--ai-intensity))),
+    hsla(calc(190 + var(--ai-hue)), 85%, 56%, calc(0.55 * var(--ai-intensity))));
+  animation: brightness-pulse 3s ease-in-out infinite;
+}
+.apply-card__inner {
+  background: var(--surface);
+  border-radius: calc(var(--radius-lg) - 2px);
+  padding: 24px;
+}
+
+/* =====================================================
+   Billing
+   ===================================================== */
+.plan-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  align-items: stretch;
+}
+@media (max-width: 980px) { .plan-grid { grid-template-columns: 1fr; } }
+
+.plan-card {
+  position: relative;
+  padding: 28px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  display: flex; flex-direction: column;
+}
+.plan-card--featured {
+  padding: 2px;
+  background: linear-gradient(135deg,
+    hsl(calc(280 + var(--ai-hue)) 88% 60%),
+    hsl(calc(218 + var(--ai-hue)) 92% 55%),
+    hsl(calc(190 + var(--ai-hue)) 85% 50%));
+  border: none;
+  transform: translateY(-8px);
+  animation: brightness-pulse 3s ease-in-out infinite;
+  z-index: 1;
+}
+.plan-card--featured > .plan-card__inner {
+  background: var(--surface);
+  border-radius: calc(var(--radius-lg) - 2px);
+  padding: 28px;
+  height: 100%;
+  display: flex; flex-direction: column;
+}
+.plan-card__badge {
+  position: absolute;
+  top: -10px; left: 50%;
+  transform: translateX(-50%);
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: linear-gradient(110deg,
+    hsl(calc(280 + var(--ai-hue)) 88% 60%),
+    hsl(calc(218 + var(--ai-hue)) 92% 55%),
+    hsl(calc(190 + var(--ai-hue)) 85% 50%));
+  color: white;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  box-shadow: 0 8px 24px -6px hsla(calc(218 + var(--ai-hue)), 92%, 55%, 0.5);
+  z-index: 2;
+}
+.plan-card__name {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.plan-card__price {
+  margin-top: 10px;
+  display: flex; align-items: baseline; gap: 4px;
+}
+.plan-card__price-num {
+  font-size: 42px;
+  font-weight: 600;
+  letter-spacing: -0.045em;
+  line-height: 1;
+}
+.plan-card__price-cycle { font-size: 13px; color: var(--text-muted); }
+
+.plan-feature {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 8px 0;
+  font-size: 13px;
+  color: var(--text);
+}
+.plan-feature--off { color: var(--text-muted); }
+.plan-feature svg { flex-shrink: 0; margin-top: 1.5px; }
+
+/* Usage bar */
+.usage {
+  display: flex; flex-direction: column; gap: 6px;
+}
+.usage__head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  font-size: 13px;
+}
+.usage__title { font-weight: 500; }
+.usage__count {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+.usage__track {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.usage__fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #10b981, #34d399);
+  transition: width 1.2s cubic-bezier(0.2,0.8,0.2,1);
+}
+.usage__fill--warn {
+  background: linear-gradient(90deg, #f59e0b, #fbbf24);
+}
+.usage__fill--danger {
+  background: linear-gradient(90deg, #ef4444, #f87171);
+}
+.usage__fill--ai {
+  background: linear-gradient(90deg,
+    hsl(calc(280 + var(--ai-hue)) 88% 60%),
+    hsl(calc(218 + var(--ai-hue)) 92% 55%),
+    hsl(calc(190 + var(--ai-hue)) 85% 50%));
+}

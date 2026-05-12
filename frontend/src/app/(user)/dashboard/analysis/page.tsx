@@ -12,12 +12,16 @@ import {
   Star,
   Check,
   X,
+  Download,
+  Lock,
 } from "lucide-react";
 
 import { analysisApi } from "@/lib/analysis-api";
+import { billingApi } from "@/lib/billing-api";
 import { Button } from "@/components/ui/Button";
 import { QuotaBanner } from "@/components/QuotaBanner";
 import type { ApiError } from "@/types/auth";
+import type { BillingMeResponse } from "@/types/billing";
 import type {
   AnalysisReport,
   Inconsistency,
@@ -40,6 +44,12 @@ export default function AnalysisPage() {
   const [error, setError] = useState<string | null>(null);
   const [quotaMessage, setQuotaMessage] = useState<string | null>(null);
   const [stepIdx, setStepIdx] = useState(0);
+  const [billing, setBilling] = useState<BillingMeResponse | null>(null);
+  const [downloading, setDownloading] = useState(false);
+
+  useEffect(() => {
+    billingApi.me().then(setBilling).catch(() => setBilling(null));
+  }, []);
 
   useEffect(() => {
     analysisApi
@@ -89,9 +99,35 @@ export default function AnalysisPage() {
     }
   };
 
+  const handlePdf = async () => {
+    setDownloading(true);
+    try {
+      await analysisApi.downloadPdf();
+    } catch (err) {
+      const e = err as AxiosError<ApiError>;
+      if (e.response?.status === 402) {
+        setQuotaMessage(
+          e.response?.data?.message ??
+            "PDF rapor indirme PREMIUM özelliğidir."
+        );
+      } else {
+        setError(e.response?.data?.message ?? "PDF indirilemedi");
+      }
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   return (
     <>
-      <PageHead phase={phase} onRun={start} hasReport={!!report} />
+      <PageHead
+        phase={phase}
+        onRun={start}
+        hasReport={!!report}
+        isPremium={billing?.isPremium ?? false}
+        onPdf={handlePdf}
+        downloading={downloading}
+      />
 
       {quotaMessage && (
         <div className="mb-6">
@@ -124,11 +160,18 @@ function PageHead({
   phase,
   onRun,
   hasReport,
+  isPremium,
+  onPdf,
+  downloading,
 }: {
   phase: Phase;
   onRun: () => void;
   hasReport: boolean;
+  isPremium: boolean;
+  onPdf: () => void;
+  downloading: boolean;
 }) {
+  const showPdf = phase === "result" && hasReport;
   return (
     <div className="page-head">
       <div>
@@ -143,6 +186,20 @@ function PageHead({
         </p>
       </div>
       <div className="page-head__actions">
+        {showPdf &&
+          (isPremium ? (
+            <Button onClick={onPdf} variant="outline" size="lg" loading={downloading}>
+              <Download size={15} /> PDF indir
+            </Button>
+          ) : (
+            <Link
+              href="/dashboard/billing"
+              className="btn btn--outline btn--lg"
+              title="PDF indirme PREMIUM özelliğidir"
+            >
+              <Lock size={14} /> PDF — PREMIUM
+            </Link>
+          ))}
         <Button onClick={onRun} variant="ai" size="lg" disabled={phase === "running"}>
           <Sparkles size={15} />
           {phase === "running" ? "Analiz ediliyor..." : hasReport ? "Yeniden çalıştır" : "Analizi başlat"}
