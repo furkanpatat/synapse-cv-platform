@@ -22,7 +22,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           { href: "/admin", label: "Ana Sayfa" },
           { href: "/admin/users", label: "Kullanıcılar" },
           { href: "/admin/companies", label: "Şirketler" },
-          { href: "/admin/logs", label: "Loglar" },
         ]}
       />
       <main className="mx-auto max-w-7xl px-6 py-8">{children}</main>

@@ -32,6 +32,11 @@ public class CompanyJobService {
     @Transactional
     public JobResponse create(User owner, JobRequest req) {
         Company company = ownedCompany(owner);
+        JobStatus requested = req.status() != null ? req.status() : JobStatus.DRAFT;
+        if (requested == JobStatus.ACTIVE && !company.isVerified()) {
+            throw ApiException.forbidden("COMPANY_NOT_VERIFIED",
+                    "Your company must be verified by an admin before publishing jobs");
+        }
         JobPosting job = JobPosting.builder()
                 .company(company)
                 .title(req.title())
@@ -43,7 +48,7 @@ public class CompanyJobService {
                 .salaryMax(req.salaryMax())
                 .currency(req.currency() != null ? req.currency() : "TRY")
                 .requiredSkills(req.requiredSkills() != null ? req.requiredSkills() : List.of())
-                .status(req.status() != null ? req.status() : JobStatus.DRAFT)
+                .status(requested)
                 .build();
         job = jobRepository.save(job);
         return JobResponse.from(job, 0L);
@@ -57,6 +62,10 @@ public class CompanyJobService {
     @Transactional
     public JobResponse update(User owner, UUID jobId, JobRequest req) {
         JobPosting job = loadOwned(owner, jobId);
+        if (req.status() == JobStatus.ACTIVE && !job.getCompany().isVerified()) {
+            throw ApiException.forbidden("COMPANY_NOT_VERIFIED",
+                    "Your company must be verified by an admin before publishing jobs");
+        }
         if (req.title() != null) job.setTitle(req.title());
         if (req.description() != null) job.setDescription(req.description());
         if (req.city() != null) job.setCity(req.city());
