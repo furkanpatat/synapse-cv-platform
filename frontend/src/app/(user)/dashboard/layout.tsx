@@ -26,6 +26,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           { href: "/dashboard/jobs", label: "İlanlar" },
           { href: "/dashboard/applications", label: "Başvurularım" },
           { href: "/dashboard/messages", label: "Mesajlar" },
+          { href: "/dashboard/billing", label: "Abonelik" },
         ]}
       />
       <main className="mx-auto max-w-7xl px-6 py-8">{children}</main>

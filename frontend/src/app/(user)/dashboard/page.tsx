@@ -47,6 +47,11 @@ export default function DashboardPage() {
           title="👤 Profil"
           desc="GitHub URL'in ve diğer bilgilerin"
         />
+        <Card
+          href="/dashboard/billing"
+          title="⭐ Abonelik"
+          desc="Plan, kullanım ve PREMIUM'a yükseltme"
+        />
       </div>
     </div>
   );
