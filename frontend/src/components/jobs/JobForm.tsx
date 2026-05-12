@@ -1,8 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { AxiosError } from "axios";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { QuotaBanner } from "@/components/QuotaBanner";
+import type { ApiError } from "@/types/auth";
 import type { JobRequest, JobResponse } from "@/types/jobs";
 
 interface Props {
@@ -17,10 +20,12 @@ export function JobForm({ initial, onSubmit, submitLabel = "Kaydet" }: Props) {
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [quotaMessage, setQuotaMessage] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
+    setQuotaMessage(null);
     setSaving(true);
     const fd = new FormData(e.currentTarget);
     const skills = skillsText
@@ -42,7 +47,16 @@ export function JobForm({ initial, onSubmit, submitLabel = "Kaydet" }: Props) {
     try {
       await onSubmit(payload);
     } catch (e) {
-      setError((e as Error).message || "Kaydetme başarısız");
+      const axiosErr = e as AxiosError<ApiError>;
+      const code = axiosErr.response?.data?.code;
+      const msg = axiosErr.response?.data?.message;
+      if (code === "QUOTA_EXCEEDED") {
+        setQuotaMessage(msg ?? "Aktif ilan kotanı aştın");
+      } else if (code === "COMPANY_NOT_VERIFIED") {
+        setError("Şirket hesabın admin tarafından onaylanmadan ilan yayınlayamazsın.");
+      } else {
+        setError(msg ?? (e as Error).message ?? "Kaydetme başarısız");
+      }
     } finally {
       setSaving(false);
     }
@@ -138,6 +152,8 @@ export function JobForm({ initial, onSubmit, submitLabel = "Kaydet" }: Props) {
           { value: "CLOSED", label: "Kapalı" },
         ]}
       />
+
+      {quotaMessage && <QuotaBanner message={quotaMessage} />}
 
       {error && (
         <div className="rounded-md bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">

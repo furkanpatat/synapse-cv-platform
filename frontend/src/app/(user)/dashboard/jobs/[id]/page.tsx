@@ -6,6 +6,7 @@ import { AxiosError } from "axios";
 
 import { userJobsApi } from "@/lib/jobs-user-api";
 import { Button } from "@/components/ui/Button";
+import { QuotaBanner } from "@/components/QuotaBanner";
 import type { ApiError } from "@/types/auth";
 import type { JobResponse } from "@/types/jobs";
 
@@ -18,6 +19,7 @@ export default function JobDetailPage() {
   const [applying, setApplying] = useState(false);
   const [applied, setApplied] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [quotaMessage, setQuotaMessage] = useState<string | null>(null);
 
   useEffect(() => {
     userJobsApi
@@ -40,6 +42,8 @@ export default function JobDetailPage() {
       if (e.response?.data?.code === "ALREADY_APPLIED") {
         setApplied(true);
         setError(null);
+      } else if (e.response?.data?.code === "QUOTA_EXCEEDED") {
+        setQuotaMessage(e.response.data.message);
       } else {
         setError(e.response?.data?.message ?? "Başvuru başarısız");
       }
@@ -95,7 +99,11 @@ export default function JobDetailPage() {
         <div className="rounded-lg border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
           <h3 className="mb-3 font-semibold">Başvur</h3>
 
-          {applied ? (
+          {quotaMessage ? (
+            <div className="space-y-2">
+              <QuotaBanner message={quotaMessage} />
+            </div>
+          ) : applied ? (
             <div className="rounded-md bg-green-50 p-3 text-sm text-green-700 dark:bg-green-950 dark:text-green-300">
               ✅ Başvurun alındı!
               <button
