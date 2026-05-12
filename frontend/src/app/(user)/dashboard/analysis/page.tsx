@@ -5,6 +5,7 @@ import { AxiosError } from "axios";
 
 import { analysisApi } from "@/lib/analysis-api";
 import { Button } from "@/components/ui/Button";
+import { QuotaBanner } from "@/components/QuotaBanner";
 import type { ApiError } from "@/types/auth";
 import type { AnalysisReport, SkillScore, Inconsistency } from "@/types/analysis";
 
@@ -13,6 +14,7 @@ export default function AnalysisPage() {
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [quotaMessage, setQuotaMessage] = useState<string | null>(null);
 
   useEffect(() => {
     analysisApi
@@ -28,13 +30,21 @@ export default function AnalysisPage() {
 
   const handleStart = async () => {
     setError(null);
+    setQuotaMessage(null);
     setRunning(true);
     try {
       const r = await analysisApi.start();
       setReport(r);
     } catch (err) {
       const e = err as AxiosError<ApiError>;
-      setError(e.response?.data?.message ?? "Analiz başarısız");
+      if (e.response?.status === 402 || e.response?.data?.code === "QUOTA_EXCEEDED") {
+        setQuotaMessage(
+          e.response?.data?.message ??
+            "Aylık AI analiz kotanı aştın. PREMIUM'a yükselt."
+        );
+      } else {
+        setError(e.response?.data?.message ?? "Analiz başarısız");
+      }
     } finally {
       setRunning(false);
     }
@@ -61,6 +71,8 @@ export default function AnalysisPage() {
           ⏳ GitHub verisi çekiliyor ve Gemini analizi yapılıyor... (30-60sn)
         </div>
       )}
+
+      {quotaMessage && <QuotaBanner message={quotaMessage} />}
 
       {error && (
         <div className="rounded-md bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">

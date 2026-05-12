@@ -42,8 +42,11 @@ export default function JobDetailPage() {
       if (e.response?.data?.code === "ALREADY_APPLIED") {
         setApplied(true);
         setError(null);
-      } else if (e.response?.data?.code === "QUOTA_EXCEEDED") {
-        setQuotaMessage(e.response.data.message);
+      } else if (e.response?.status === 402 || e.response?.data?.code === "QUOTA_EXCEEDED") {
+        setQuotaMessage(
+          e.response?.data?.message ??
+            "Aktif başvuru kotanı aştın. PREMIUM'a yükselt."
+        );
       } else {
         setError(e.response?.data?.message ?? "Başvuru başarısız");
       }
