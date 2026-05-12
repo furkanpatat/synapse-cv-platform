@@ -32,7 +32,7 @@ public class AdminBootstrap {
     private String password;
 
     @Bean
-    public ApplicationRunner adminBootstrap() {
+    public ApplicationRunner adminBootstrapRunner() {
         return args -> {
             boolean adminExists = userRepository.findAll().stream()
                     .anyMatch(u -> u.getRole() == Role.ADMIN);
