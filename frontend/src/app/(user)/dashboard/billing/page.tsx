@@ -67,6 +67,9 @@ const PLANS: {
 export default function BillingPage() {
   const [data, setData] = useState<BillingMeResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [upgrading, setUpgrading] = useState<PlanKey | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     billingApi
@@ -74,6 +77,25 @@ export default function BillingPage() {
       .then(setData)
       .finally(() => setLoading(false));
   }, []);
+
+  const handleUpgrade = async (plan: PlanKey) => {
+    setError(null);
+    setSuccess(null);
+    setUpgrading(plan);
+    try {
+      const next = await billingApi.upgrade(plan);
+      setData(next);
+      setSuccess(
+        plan === "FREE"
+          ? "FREE plana geçtin."
+          : `Plan ${plan} olarak güncellendi. Demo modu — gerçek ödeme yapılmadı.`
+      );
+    } catch (e) {
+      setError("Plan güncellenemedi.");
+    } finally {
+      setUpgrading(null);
+    }
+  };
 
   if (loading) return <p className="text-sm text-text-muted">Yükleniyor...</p>;
   if (!data) return null;
@@ -133,6 +155,17 @@ export default function BillingPage() {
         </div>
       </div>
 
+      {success && (
+        <div className="mb-6 rounded-md border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-300">
+          ✓ {success}
+        </div>
+      )}
+      {error && (
+        <div className="mb-6 rounded-md border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">
+          {error}
+        </div>
+      )}
+
       {/* Plan compare grid */}
       <div className="mb-2 flex items-center justify-between">
         <h3 className="text-[13px] font-medium">Plan karşılaştırma</h3>
@@ -174,12 +207,35 @@ export default function BillingPage() {
                   >
                     Aktif planın
                   </button>
+                ) : p.key === "ENTERPRISE" ? (
+                  <a
+                    href="mailto:sales@synapse.local"
+                    className="btn btn--outline w-full"
+                  >
+                    {p.cta}
+                  </a>
                 ) : featured ? (
-                  <button className="btn btn--ai w-full">
-                    <Sparkles size={14} /> {p.cta}
+                  <button
+                    onClick={() => handleUpgrade(p.key)}
+                    disabled={upgrading !== null}
+                    className="btn btn--ai w-full"
+                  >
+                    {upgrading === p.key ? (
+                      "Yükseltiliyor..."
+                    ) : (
+                      <>
+                        <Sparkles size={14} /> {p.cta}
+                      </>
+                    )}
                   </button>
                 ) : (
-                  <button className="btn btn--outline w-full">{p.cta}</button>
+                  <button
+                    onClick={() => handleUpgrade(p.key)}
+                    disabled={upgrading !== null}
+                    className="btn btn--outline w-full"
+                  >
+                    {upgrading === p.key ? "Geçiliyor..." : p.cta}
+                  </button>
                 )}
               </div>
             </>
@@ -219,7 +275,8 @@ export default function BillingPage() {
       </div>
 
       <p className="font-mono text-[11px] text-text-muted">
-        Ödeme entegrasyonu yakında. Şu an admin üzerinden plan yükseltilebilir.{" "}
+        ⚠️ Demo modu — gerçek ödeme alınmaz. Production&apos;da Iyzico checkout
+        akışı ile değiştirilecek.{" "}
         <Link href="/dashboard/analysis" className="text-text border-b border-border-strong">
           Analize geri dön
         </Link>
