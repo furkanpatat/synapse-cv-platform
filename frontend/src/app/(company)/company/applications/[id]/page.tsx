@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { AxiosError } from "axios";
 
 import { companyApi } from "@/lib/company-api";
+import { messagingApi } from "@/lib/messaging-api";
 import { ApplicationStatusBadge } from "@/components/jobs/ApplicationStatusBadge";
+import { Button } from "@/components/ui/Button";
 import type { ApiError } from "@/types/auth";
 import type { ApplicationResponse, ApplicationStatus } from "@/types/jobs";
 
@@ -36,8 +38,10 @@ const STATUS_OPTIONS: ApplicationStatus[] = [
 
 export default function CandidateDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const [data, setData] = useState<ApplicationDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [messaging, setMessaging] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -54,6 +58,22 @@ export default function CandidateDetailPage() {
     if (!data) return;
     const updated = await companyApi.updateApplicationStatus(data.application.id, status);
     setData({ ...data, application: updated });
+  };
+
+  const handleMessage = async () => {
+    if (!data) return;
+    setMessaging(true);
+    try {
+      await messagingApi.send({
+        toUserId: data.application.userId,
+        body: `Merhaba ${data.application.userFirstName}, "${data.application.jobTitle}" başvurun için seninle iletişime geçmek istiyoruz.`,
+      });
+      router.push("/company/messages");
+    } catch {
+      setError("Mesaj başlatılamadı");
+    } finally {
+      setMessaging(false);
+    }
   };
 
   if (loading) return <p className="text-sm text-gray-500">Yükleniyor...</p>;
@@ -188,6 +208,13 @@ export default function CandidateDetailPage() {
 
       {/* Sidebar: status update */}
       <aside className="space-y-4">
+        <div className="rounded-lg border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
+          <h3 className="mb-3 font-semibold">Adayla İletişim</h3>
+          <Button onClick={handleMessage} loading={messaging} className="w-full">
+            💬 Mesaj Gönder
+          </Button>
+        </div>
+
         <div className="rounded-lg border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
           <h3 className="mb-3 font-semibold">Durum Güncelle</h3>
           <div className="space-y-2">
