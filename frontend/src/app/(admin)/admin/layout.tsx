@@ -1,30 +1,33 @@
 "use client";
 
+import { LayoutDashboard, Users, Building2 } from "lucide-react";
+
 import { useRequireRole } from "@/lib/use-require-role";
-import { Nav } from "@/components/Nav";
+import { DashboardShell } from "@/components/dashboard/DashboardShell";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { ready } = useRequireRole("ADMIN");
 
   if (!ready) {
     return (
-      <div className="flex min-h-screen items-center justify-center text-sm text-gray-500">
+      <div className="grid min-h-screen place-items-center text-sm text-text-muted">
         Yükleniyor...
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
-      <Nav
-        title="Admin Paneli"
-        links={[
-          { href: "/admin", label: "Ana Sayfa" },
-          { href: "/admin/users", label: "Kullanıcılar" },
-          { href: "/admin/companies", label: "Şirketler" },
-        ]}
-      />
-      <main className="mx-auto max-w-7xl px-6 py-8">{children}</main>
-    </div>
+    <DashboardShell
+      role="ADMIN"
+      workspaceLabel="Sistem"
+      primaryItems={[
+        { href: "/admin", label: "Panel", icon: LayoutDashboard },
+        { href: "/admin/users", label: "Kullanıcılar", icon: Users },
+        { href: "/admin/companies", label: "Şirketler", icon: Building2 },
+      ]}
+      accountItems={[]}
+    >
+      {children}
+    </DashboardShell>
   );
 }

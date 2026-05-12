@@ -1,35 +1,48 @@
 "use client";
 
+import {
+  LayoutDashboard,
+  FileText,
+  Brain,
+  Briefcase,
+  Inbox,
+  MessageSquare,
+  User,
+  Crown,
+} from "lucide-react";
+
 import { useRequireRole } from "@/lib/use-require-role";
-import { Nav } from "@/components/Nav";
+import { DashboardShell } from "@/components/dashboard/DashboardShell";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { ready } = useRequireRole("USER");
 
   if (!ready) {
     return (
-      <div className="flex min-h-screen items-center justify-center text-sm text-gray-500">
+      <div className="grid min-h-screen place-items-center text-sm text-text-muted">
         Yükleniyor...
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
-      <Nav
-        title="Kullanıcı Paneli"
-        links={[
-          { href: "/dashboard", label: "Ana Sayfa" },
-          { href: "/dashboard/profile", label: "Profil" },
-          { href: "/dashboard/cv", label: "CV" },
-          { href: "/dashboard/analysis", label: "AI Analiz" },
-          { href: "/dashboard/jobs", label: "İlanlar" },
-          { href: "/dashboard/applications", label: "Başvurularım" },
-          { href: "/dashboard/messages", label: "Mesajlar" },
-          { href: "/dashboard/billing", label: "Abonelik" },
-        ]}
-      />
-      <main className="mx-auto max-w-7xl px-6 py-8">{children}</main>
-    </div>
+    <DashboardShell
+      role="USER"
+      workspaceLabel="Çalışma alanı"
+      primaryItems={[
+        { href: "/dashboard", label: "Panel", icon: LayoutDashboard },
+        { href: "/dashboard/cv", label: "CV'm", icon: FileText },
+        { href: "/dashboard/analysis", label: "AI Analiz", icon: Brain, badge: "AI" },
+        { href: "/dashboard/jobs", label: "İlanlar", icon: Briefcase },
+        { href: "/dashboard/applications", label: "Başvurularım", icon: Inbox },
+        { href: "/dashboard/messages", label: "Mesajlar", icon: MessageSquare },
+      ]}
+      accountItems={[
+        { href: "/dashboard/profile", label: "Profil", icon: User },
+        { href: "/dashboard/billing", label: "Abonelik", icon: Crown },
+      ]}
+    >
+      {children}
+    </DashboardShell>
   );
 }

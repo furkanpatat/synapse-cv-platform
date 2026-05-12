@@ -1,31 +1,43 @@
 "use client";
 
+import {
+  LayoutDashboard,
+  Briefcase,
+  Inbox,
+  Brain,
+  MessageSquare,
+  Building2,
+  Crown,
+} from "lucide-react";
+
 import { useRequireRole } from "@/lib/use-require-role";
-import { Nav } from "@/components/Nav";
+import { DashboardShell } from "@/components/dashboard/DashboardShell";
 
 export default function CompanyLayout({ children }: { children: React.ReactNode }) {
   const { ready } = useRequireRole("COMPANY");
 
   if (!ready) {
     return (
-      <div className="flex min-h-screen items-center justify-center text-sm text-gray-500">
+      <div className="grid min-h-screen place-items-center text-sm text-text-muted">
         Yükleniyor...
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
-      <Nav
-        title="Şirket Paneli"
-        links={[
-          { href: "/company", label: "Ana Sayfa" },
-          { href: "/company/jobs", label: "İlanlarım" },
-          { href: "/company/messages", label: "Mesajlar" },
-          { href: "/company/profile", label: "Şirket Profili" },
-        ]}
-      />
-      <main className="mx-auto max-w-7xl px-6 py-8">{children}</main>
-    </div>
+    <DashboardShell
+      role="COMPANY"
+      workspaceLabel="Yönetim"
+      primaryItems={[
+        { href: "/company", label: "Panel", icon: LayoutDashboard },
+        { href: "/company/jobs", label: "İlanlarım", icon: Briefcase },
+        { href: "/company/messages", label: "Mesajlar", icon: MessageSquare },
+      ]}
+      accountItems={[
+        { href: "/company/profile", label: "Şirket Profili", icon: Building2 },
+      ]}
+    >
+      {children}
+    </DashboardShell>
   );
 }
