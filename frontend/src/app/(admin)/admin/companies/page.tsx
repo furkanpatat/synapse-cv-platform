@@ -110,7 +110,7 @@ export default function AdminCompaniesPage() {
                 </td>
                 <td className="px-4 py-2 text-right">
                   <Button
-                    variant={c.verified ? "secondary" : "primary"}
+                    variant={c.verified ? "outline" : "primary"}
                     onClick={() => handleVerify(c)}
                   >
                     {c.verified ? "Onayı Geri Al" : "Onayla"}

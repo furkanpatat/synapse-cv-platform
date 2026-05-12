@@ -134,7 +134,7 @@ export default function AdminUsersPage() {
                 <td className="px-4 py-2 text-right">
                   {u.role !== "ADMIN" && (
                     <Button
-                      variant={u.banned ? "secondary" : "danger"}
+                      variant={u.banned ? "outline" : "danger"}
                       onClick={() => handleBan(u)}
                     >
                       {u.banned ? "Banı Kaldır" : "Banla"}

@@ -1,17 +1,33 @@
 import type { Metadata } from "next";
+import { GeistSans } from "geist/font/sans";
+import { GeistMono } from "geist/font/mono";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "CV Platform",
-  description: "AI Destekli CV Doğrulama ve Yetkinlik Analiz Platformu",
+  title: "Synapse — AI ile CV Doğrulama",
+  description:
+    "CV'nin gerçekliğini AI ile doğrula. GitHub kanıtıyla her yetkinliği eşleştir, 0-100 arası tek bir skorda.",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
-    <html lang="tr">
-      <body className="min-h-screen bg-white text-gray-900 dark:bg-gray-950 dark:text-gray-100 antialiased">
-        {children}
-      </body>
+    <html
+      lang="tr"
+      data-theme="dark"
+      className={`${GeistSans.variable} ${GeistMono.variable}`}
+      style={
+        {
+          "--font-geist": GeistSans.style.fontFamily,
+          "--font-geist-mono": GeistMono.style.fontFamily,
+        } as React.CSSProperties
+      }
+      suppressHydrationWarning
+    >
+      <body className="min-h-screen antialiased">{children}</body>
     </html>
   );
 }
