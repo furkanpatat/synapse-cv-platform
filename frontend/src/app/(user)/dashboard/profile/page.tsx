@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { AxiosError } from "axios";
 import {
@@ -16,9 +16,11 @@ import {
 import { authApi } from "@/lib/auth-api";
 import { userApi } from "@/lib/user-api";
 import { analysisApi } from "@/lib/analysis-api";
+import { aiApi } from "@/lib/ai-api";
 import { useAuthStore } from "@/lib/auth-store";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
+import { AiText } from "@/components/ai/AiText";
 import type { ApiError, MeResponse } from "@/types/auth";
 import type { AnalysisReport } from "@/types/analysis";
 
@@ -30,6 +32,28 @@ export default function ProfilePage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const setUser = useAuthStore((s) => s.setUser);
+  const bioRef = useRef<HTMLTextAreaElement>(null);
+  const [generatingBio, setGeneratingBio] = useState(false);
+  const [aiBioText, setAiBioText] = useState<string | null>(null);
+  const [aiBioError, setAiBioError] = useState<string | null>(null);
+
+  const handleGenerateBio = async () => {
+    setAiBioError(null);
+    setAiBioText("");
+    setGeneratingBio(true);
+    try {
+      const text = await aiApi.bio();
+      setAiBioText(text);
+      if (bioRef.current) bioRef.current.value = text;
+    } catch (err) {
+      const e = err as AxiosError<ApiError>;
+      setAiBioError(
+        e.response?.data?.message ?? "AI bio üretilemedi. Önce CV yükle ve analiz çalıştır."
+      );
+    } finally {
+      setGeneratingBio(false);
+    }
+  };
 
   useEffect(() => {
     authApi
@@ -189,21 +213,43 @@ export default function ProfilePage() {
           <div className="rounded-[var(--radius-lg)] border border-border bg-surface p-7">
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-[13px] font-medium">📝 Hakkımda</h3>
-              <span className="pill pill--ai" style={{ fontSize: 11 }}>
-                <Sparkles size={11} /> AI ile yaz
-              </span>
+              <button
+                type="button"
+                onClick={handleGenerateBio}
+                disabled={generatingBio}
+                className="pill pill--ai disabled:opacity-60 hover:brightness-110"
+                style={{ fontSize: 11, cursor: "pointer" }}
+              >
+                <Sparkles size={11} />
+                {generatingBio ? "AI yazıyor..." : "AI ile yaz"}
+              </button>
             </div>
             <div className="space-y-1">
               <span className="block font-mono text-[10.5px] uppercase tracking-[0.16em] text-text-muted">
                 KISA BİYOGRAFİ
               </span>
               <textarea
+                ref={bioRef}
                 name="bio"
                 rows={5}
                 defaultValue={me.bio ?? ""}
                 placeholder="Profilinin ilk gördüğü satır — kısa ve net olsun."
                 className="block w-full rounded-[10px] border border-border bg-surface px-3 py-2.5 text-sm text-text placeholder:text-text-muted focus:border-text focus:outline-none focus:shadow-[0_0_0_3px_rgba(255,255,255,0.04)]"
               />
+              {aiBioText !== null && (
+                <div className="mt-2 rounded-md border border-ai-2/30 bg-ai-2/5 p-3 text-[13px] text-text-2">
+                  <div className="mb-1 font-mono text-[10px] uppercase tracking-[0.16em] text-text-muted">
+                    <Sparkles size={10} className="inline" /> AI önerisi (yukarıya
+                    eklendi — düzenleyebilirsin)
+                  </div>
+                  <AiText text={aiBioText} />
+                </div>
+              )}
+              {aiBioError && (
+                <div className="mt-2 rounded-md border border-red-500/30 bg-red-500/10 p-2 text-xs text-red-300">
+                  {aiBioError}
+                </div>
+              )}
             </div>
           </div>
 

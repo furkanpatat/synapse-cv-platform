@@ -18,9 +18,11 @@ import {
 
 import { companyApi } from "@/lib/company-api";
 import { messagingApi } from "@/lib/messaging-api";
+import { aiApi } from "@/lib/ai-api";
 import { Button } from "@/components/ui/Button";
 import { ScoreRing } from "@/components/ui/ScoreRing";
 import { ApplicationStatusBadge } from "@/components/jobs/ApplicationStatusBadge";
+import { AiText } from "@/components/ai/AiText";
 import type { ApiError } from "@/types/auth";
 import type { ApplicationResponse, ApplicationStatus } from "@/types/jobs";
 
@@ -71,6 +73,23 @@ export default function CandidateDetailPage() {
   const [loading, setLoading] = useState(true);
   const [messaging, setMessaging] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hiringBrief, setHiringBrief] = useState<string | null>(null);
+  const [briefLoading, setBriefLoading] = useState(false);
+  const [briefError, setBriefError] = useState<string | null>(null);
+
+  const fetchBrief = async () => {
+    setBriefError(null);
+    setBriefLoading(true);
+    try {
+      const txt = await aiApi.hiringBrief(id);
+      setHiringBrief(txt);
+    } catch (err) {
+      const e = err as AxiosError<ApiError>;
+      setBriefError(e.response?.data?.message ?? "AI cevabı alınamadı");
+    } finally {
+      setBriefLoading(false);
+    }
+  };
 
   useEffect(() => {
     companyApi
@@ -216,6 +235,48 @@ export default function CandidateDetailPage() {
               </div>
             </div>
           )}
+
+          {/* AI Hiring Brief */}
+          <div className="rounded-[var(--radius-lg)] border border-ai-2/40 bg-surface p-7">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="flex items-center gap-2 text-[13px] font-medium">
+                <Sparkles size={14} className="text-ai-2" /> AI İşe Alım Özeti
+              </h3>
+              {!hiringBrief && (
+                <button
+                  type="button"
+                  onClick={fetchBrief}
+                  disabled={briefLoading}
+                  className="btn btn--ai btn--sm"
+                >
+                  {briefLoading ? "Düşünüyor..." : (
+                    <>
+                      <Sparkles size={12} /> Özet üret
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+            {hiringBrief ? (
+              <div className="prose-sm">
+                <AiText
+                  text={hiringBrief}
+                  className="text-[13.5px] leading-[1.65] text-text"
+                />
+              </div>
+            ) : (
+              <p className="text-[13px] text-text-2">
+                AI&apos;dan bu adayın işe alma nedenleri, potansiyel riskleri ve
+                karar tavsiyesi üzerine yapılandırılmış bir özet iste — karar
+                vermeden önce hızlı bir referans.
+              </p>
+            )}
+            {briefError && (
+              <div className="mt-3 rounded-md border border-red-500/30 bg-red-500/10 p-2 text-xs text-red-300">
+                {briefError}
+              </div>
+            )}
+          </div>
 
           {/* CV summary */}
           {cv && (

@@ -20,9 +20,11 @@ import {
 import { userJobsApi } from "@/lib/jobs-user-api";
 import { analysisApi } from "@/lib/analysis-api";
 import { billingApi } from "@/lib/billing-api";
+import { aiApi } from "@/lib/ai-api";
 import { QuotaBanner } from "@/components/QuotaBanner";
 import { Button } from "@/components/ui/Button";
 import { ScoreRing } from "@/components/ui/ScoreRing";
+import { AiText } from "@/components/ai/AiText";
 import type { ApiError } from "@/types/auth";
 import type { JobResponse } from "@/types/jobs";
 import type { AnalysisReport } from "@/types/analysis";
@@ -41,6 +43,57 @@ export default function JobDetailPage() {
   const [applied, setApplied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [quotaMessage, setQuotaMessage] = useState<string | null>(null);
+
+  // AI features
+  const [coverLoading, setCoverLoading] = useState(false);
+  const [matchExpl, setMatchExpl] = useState<string | null>(null);
+  const [matchLoading, setMatchLoading] = useState(false);
+  const [skillGap, setSkillGap] = useState<string | null>(null);
+  const [gapLoading, setGapLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+
+  const fetchMatch = async () => {
+    setAiError(null);
+    setMatchLoading(true);
+    try {
+      const txt = await aiApi.matchExplanation(id);
+      setMatchExpl(txt);
+    } catch (err) {
+      const e = err as AxiosError<ApiError>;
+      setAiError(e.response?.data?.message ?? "AI cevabı alınamadı");
+    } finally {
+      setMatchLoading(false);
+    }
+  };
+
+  const fetchGap = async () => {
+    setAiError(null);
+    setGapLoading(true);
+    try {
+      const txt = await aiApi.skillGap(id);
+      setSkillGap(txt);
+    } catch (err) {
+      const e = err as AxiosError<ApiError>;
+      setAiError(e.response?.data?.message ?? "AI cevabı alınamadı");
+    } finally {
+      setGapLoading(false);
+    }
+  };
+
+  const fetchCover = async () => {
+    setAiError(null);
+    setCoverLoading(true);
+    try {
+      const txt = await aiApi.coverLetter(id);
+      setCoverLetter(txt);
+      setShowCover(true);
+    } catch (err) {
+      const e = err as AxiosError<ApiError>;
+      setAiError(e.response?.data?.message ?? "AI cevabı alınamadı");
+    } finally {
+      setCoverLoading(false);
+    }
+  };
 
   useEffect(() => {
     userJobsApi
@@ -177,6 +230,72 @@ export default function JobDetailPage() {
             </div>
           </div>
 
+          {/* AI Match Explanation */}
+          <div className="card--grad-border">
+            <div className="card__inner">
+              <div className="mb-3 flex items-center justify-between">
+                <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-text-muted">
+                  <Sparkles size={11} className="inline text-ai-2" /> AI MATCH AÇIKLAMASI
+                </div>
+                {!matchExpl && (
+                  <button
+                    type="button"
+                    onClick={fetchMatch}
+                    disabled={matchLoading}
+                    className="btn btn--ai btn--sm"
+                  >
+                    {matchLoading ? "Düşünüyor..." : (
+                      <>
+                        <Sparkles size={12} /> Açıkla
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
+              {matchExpl ? (
+                <AiText text={matchExpl} className="text-[14px] leading-[1.6] text-text" />
+              ) : (
+                <p className="text-[13px] text-text-2">
+                  AI&apos;dan bu rolün senin profilinle neden eşleştiğini iste — güçlü
+                  yönlerin ve eksiklerin için somut yorum yapacak.
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* AI Skill Gap */}
+          <div className="rounded-[var(--radius-lg)] border border-border bg-surface p-7">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="flex items-center gap-2 text-[13px] font-medium">
+                <Sparkles size={14} className="text-ai-2" /> Eksiklerini kapat
+              </h3>
+              {!skillGap && (
+                <button
+                  type="button"
+                  onClick={fetchGap}
+                  disabled={gapLoading}
+                  className="btn btn--outline btn--sm"
+                >
+                  {gapLoading ? "Düşünüyor..." : "AI önerisi al"}
+                </button>
+              )}
+            </div>
+            {skillGap ? (
+              <AiText text={skillGap} className="text-[13.5px] leading-[1.65] text-text" />
+            ) : (
+              <p className="text-[13px] text-text-2">
+                Bu ilana tam uymak için AI senin için 3-5 madde halinde öğrenme yol
+                haritası çıkarsın.
+              </p>
+            )}
+          </div>
+
+          {aiError && (
+            <div className="rounded-md border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">
+              {aiError}
+            </div>
+          )}
+
           {required.length > 0 && (
             <div className="rounded-[var(--radius-lg)] border border-border bg-surface p-7">
               <div className="mb-3 font-mono text-[11px] uppercase tracking-[0.16em] text-text-muted">
@@ -290,13 +409,30 @@ export default function JobDetailPage() {
               ) : (
                 <div className="space-y-2">
                   {showCover && (
-                    <textarea
-                      value={coverLetter}
-                      onChange={(e) => setCoverLetter(e.target.value)}
-                      placeholder="Ön yazı (opsiyonel)..."
-                      rows={4}
-                      className="block w-full rounded-md border border-border bg-surface-2 px-3 py-2.5 text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-text"
-                    />
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono text-[10.5px] uppercase tracking-[0.16em] text-text-muted">
+                          Ön yazı
+                        </span>
+                        <button
+                          type="button"
+                          onClick={fetchCover}
+                          disabled={coverLoading}
+                          className="pill pill--ai disabled:opacity-60 hover:brightness-110"
+                          style={{ fontSize: 10, cursor: "pointer" }}
+                        >
+                          <Sparkles size={10} />
+                          {coverLoading ? "AI yazıyor..." : "AI ile yaz"}
+                        </button>
+                      </div>
+                      <textarea
+                        value={coverLetter}
+                        onChange={(e) => setCoverLetter(e.target.value)}
+                        placeholder="Ön yazı (opsiyonel)..."
+                        rows={6}
+                        className="block w-full rounded-md border border-border bg-surface-2 px-3 py-2.5 text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-text"
+                      />
+                    </div>
                   )}
                   {error && (
                     <div className="rounded-md bg-red-500/10 border border-red-500/30 p-2 text-xs text-red-300">
@@ -313,13 +449,25 @@ export default function JobDetailPage() {
                     <Sparkles size={15} /> Hemen başvur
                   </Button>
                   {!showCover && (
-                    <button
-                      type="button"
-                      onClick={() => setShowCover(true)}
-                      className="block w-full text-center font-mono text-[11px] uppercase tracking-wider text-text-muted hover:text-text"
-                    >
-                      + Ön yazı ekle
-                    </button>
+                    <div className="flex justify-center gap-3 text-[11px] uppercase tracking-wider">
+                      <button
+                        type="button"
+                        onClick={() => setShowCover(true)}
+                        className="font-mono text-text-muted hover:text-text"
+                      >
+                        + Ön yazı ekle
+                      </button>
+                      <span className="text-border">·</span>
+                      <button
+                        type="button"
+                        onClick={fetchCover}
+                        disabled={coverLoading}
+                        className="inline-flex items-center gap-1 font-mono text-ai-3 hover:brightness-110 disabled:opacity-60"
+                      >
+                        <Sparkles size={10} />
+                        {coverLoading ? "AI yazıyor..." : "AI ile yaz"}
+                      </button>
+                    </div>
                   )}
                   {billing?.isPremium ? (
                     <button
