@@ -35,9 +35,14 @@ export default function JobsListPage() {
   }, []);
 
   const filtered = useMemo(() => {
+    const s = search.trim().toLowerCase();
+    const c = city.trim().toLowerCase();
     return jobs.filter((j) => {
-      if (search && !j.title.toLowerCase().includes(search.toLowerCase())) return false;
-      if (city && (j.city || "").toLowerCase() !== city.toLowerCase()) return false;
+      if (s) {
+        const hay = `${j.title} ${j.companyName} ${(j.requiredSkills || []).join(" ")}`.toLowerCase();
+        if (!hay.includes(s)) return false;
+      }
+      if (c && !(j.city || "").toLowerCase().includes(c)) return false;
       if (level && j.level !== level) return false;
       if (remote && j.remoteType !== remote) return false;
       return true;
