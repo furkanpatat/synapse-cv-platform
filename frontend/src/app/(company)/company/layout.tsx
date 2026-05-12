@@ -21,6 +21,7 @@ export default function CompanyLayout({ children }: { children: React.ReactNode 
         links={[
           { href: "/company", label: "Ana Sayfa" },
           { href: "/company/jobs", label: "İlanlarım" },
+          { href: "/company/messages", label: "Mesajlar" },
           { href: "/company/profile", label: "Şirket Profili" },
         ]}
       />

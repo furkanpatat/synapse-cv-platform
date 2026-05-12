@@ -34,7 +34,7 @@ public class MessagingService {
     public List<ConversationDto> listMyConversations(User caller) {
         List<Conversation> convs = (caller.getRole() == Role.COMPANY)
                 ? companyConversations(caller)
-                : conversationRepository.findAllByUser_IdOrderByLastMessageAtDescNullsLast(caller.getId());
+                : conversationRepository.findAllByUser(caller.getId());
 
         return convs.stream()
                 .map(c -> ConversationDto.from(c, unreadFor(caller, c)))
@@ -131,8 +131,7 @@ public class MessagingService {
         Company company = companyRepository.findByOwner_Id(owner.getId())
                 .orElseThrow(() -> ApiException.notFound("COMPANY_NOT_FOUND",
                         "No company associated with this account"));
-        return conversationRepository
-                .findAllByCompany_IdOrderByLastMessageAtDescNullsLast(company.getId());
+        return conversationRepository.findAllByCompany(company.getId());
     }
 
     private long unreadFor(User caller, Conversation conv) {

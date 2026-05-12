@@ -54,7 +54,9 @@ export function MessagingPanel({ viewer }: { viewer: "USER" | "COMPANY" }) {
     socket.connect(accessToken);
     const unsub = socket.onMessage((m) => {
       if (m.conversationId === activeId) {
-        setMessages((prev) => [...prev, m]);
+        setMessages((prev) =>
+          prev.some((x) => x.id === m.id) ? prev : [...prev, m]
+        );
       }
       // bump conv to top + update lastMessageAt
       setConversations((prev) => {
@@ -94,7 +96,9 @@ export function MessagingPanel({ viewer }: { viewer: "USER" | "COMPANY" }) {
     setDraft("");
     try {
       const m = await messagingApi.send({ conversationId: activeId, body });
-      setMessages((prev) => [...prev, m]);
+      setMessages((prev) =>
+        prev.some((x) => x.id === m.id) ? prev : [...prev, m]
+      );
     } catch (err) {
       setError("Mesaj gönderilemedi");
       setDraft(body); // restore
