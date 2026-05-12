@@ -4,6 +4,8 @@ import com.cvplatform.common.ApiException;
 import com.cvplatform.cv.AiServiceClient;
 import com.cvplatform.cv.CvDocument;
 import com.cvplatform.cv.CvDocumentRepository;
+import com.cvplatform.notifications.NotificationService;
+import com.cvplatform.notifications.NotificationType;
 import com.cvplatform.subscription.QuotaService;
 import com.cvplatform.user.User;
 import com.cvplatform.user.UserRepository;
@@ -33,6 +35,7 @@ public class AnalysisService {
     private final AiServiceClient aiServiceClient;
     private final ObjectMapper objectMapper;
     private final QuotaService quotaService;
+    private final NotificationService notificationService;
 
     @Transactional
     public AnalysisReport startAnalysis(UUID userId) {
@@ -59,7 +62,20 @@ public class AnalysisService {
         report.setId(null);
         report.setUserId(userId);
         report.setGithubUsername(githubUsername);
-        return reportRepository.save(report);
+        AnalysisReport saved = reportRepository.save(report);
+
+        try {
+            notificationService.notify(
+                    userId,
+                    NotificationType.ANALYSIS_COMPLETE,
+                    "AI yetkinlik raporun hazır ✨",
+                    "Genel skor " + (saved.getOverallScore() == null ? "—" : saved.getOverallScore())
+                            + "/100 — detayları görüntüle.",
+                    "/dashboard/analysis"
+            );
+        } catch (Exception ignored) {}
+
+        return saved;
     }
 
     public AnalysisReport getMyLatest(UUID userId) {

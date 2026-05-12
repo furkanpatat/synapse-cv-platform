@@ -8,6 +8,8 @@ import com.cvplatform.cv.CvDocumentRepository;
 import com.cvplatform.jobs.dto.ApplicationResponse;
 import com.cvplatform.jobs.dto.ApplyRequest;
 import com.cvplatform.jobs.dto.JobResponse;
+import com.cvplatform.notifications.NotificationService;
+import com.cvplatform.notifications.NotificationType;
 import com.cvplatform.user.User;
 import com.cvplatform.user.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +33,8 @@ public class PublicJobService {
     private final AnalysisReportRepository analysisRepository;
     private final UserRepository userRepository;
     private final com.cvplatform.subscription.QuotaService quotaService;
+    private final NotificationService notificationService;
+    private final EmbeddingClient embeddingClient;
 
     public Page<JobResponse> listActive(int page, int size) {
         Page<JobPosting> jobs = jobRepository.findAllByStatus(
@@ -79,6 +83,24 @@ public class PublicJobService {
                 .coverLetter(req.coverLetter())
                 .build();
         app = applicationRepository.save(app);
+
+        // Notify the company owner that a new application has arrived
+        try {
+            UUID ownerId = job.getCompany().getOwner().getId();
+            String candidateName = ((user.getFirstName() == null ? "" : user.getFirstName()) + " "
+                    + (user.getLastName() == null ? "" : user.getLastName())).trim();
+            String name = candidateName.isEmpty() ? user.getEmail() : candidateName;
+            notificationService.notify(
+                    ownerId,
+                    NotificationType.NEW_APPLICATION,
+                    "Yeni başvuru: " + job.getTitle(),
+                    name + " bu ilana başvurdu" + (aiScore != null ? " · AI skor " + aiScore : ""),
+                    "/company/applications/" + app.getId()
+            );
+        } catch (Exception ignored) {
+            // notification is non-critical
+        }
+
         return ApplicationResponse.from(app);
     }
 
@@ -90,22 +112,48 @@ public class PublicJobService {
 
     public List<JobResponse> recommendedForUser(UUID userId, int limit) {
         CvDocument cv = cvRepository.findFirstByUserIdOrderByCreatedAtDesc(userId).orElse(null);
-        Set<String> mySkills = normalizeSkills(cv == null ? List.of() : cv.getSkills());
+        List<String> mySkillsList = cv == null || cv.getSkills() == null ? List.of() : cv.getSkills();
 
         Page<JobPosting> active = jobRepository.findAllByStatus(
                 JobStatus.ACTIVE,
                 PageRequest.of(0, 50, Sort.by(Sort.Direction.DESC, "createdAt"))
         );
+        List<JobPosting> activeList = active.getContent();
+        if (activeList.isEmpty()) return List.of();
 
-        record Scored(JobPosting job, int score) {}
-        List<Scored> scored = active.stream()
-                .map(j -> new Scored(j, overlap(mySkills, normalizeSkills(j.getRequiredSkills()))))
-                .sorted(Comparator.comparingInt(Scored::score).reversed())
-                .limit(limit)
+        if (mySkillsList.isEmpty()) {
+            return activeList.stream()
+                    .limit(limit)
+                    .map(j -> JobResponse.from(j, applicationRepository.countByJob_Id(j.getId())))
+                    .toList();
+        }
+
+        List<EmbeddingClient.CandidateBody> candidates = activeList.stream()
+                .map(j -> new EmbeddingClient.CandidateBody(
+                        j.getId().toString(),
+                        j.getRequiredSkills() == null ? List.of() : j.getRequiredSkills(),
+                        j.getTitle()
+                ))
                 .toList();
 
-        return scored.stream()
-                .map(s -> JobResponse.from(s.job(), applicationRepository.countByJob_Id(s.job().getId())))
+        List<EmbeddingClient.MatchHit> hits = embeddingClient.match(mySkillsList, candidates, limit);
+        if (hits.isEmpty()) {
+            Set<String> mySet = normalizeSkills(mySkillsList);
+            return activeList.stream()
+                    .sorted((a, b) -> Integer.compare(
+                            overlap(normalizeSkills(b.getRequiredSkills()), mySet),
+                            overlap(normalizeSkills(a.getRequiredSkills()), mySet)))
+                    .limit(limit)
+                    .map(j -> JobResponse.from(j, applicationRepository.countByJob_Id(j.getId())))
+                    .toList();
+        }
+
+        Map<UUID, JobPosting> byId = activeList.stream()
+                .collect(Collectors.toMap(JobPosting::getId, j -> j));
+        return hits.stream()
+                .map(h -> byId.get(UUID.fromString(h.id())))
+                .filter(Objects::nonNull)
+                .map(j -> JobResponse.from(j, applicationRepository.countByJob_Id(j.getId())))
                 .toList();
     }
 

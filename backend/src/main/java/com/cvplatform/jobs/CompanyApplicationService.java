@@ -9,6 +9,8 @@ import com.cvplatform.cv.CvDocument;
 import com.cvplatform.cv.CvDocumentRepository;
 import com.cvplatform.jobs.dto.ApplicationResponse;
 import com.cvplatform.jobs.dto.ApplicationStatusUpdate;
+import com.cvplatform.notifications.NotificationService;
+import com.cvplatform.notifications.NotificationType;
 import com.cvplatform.user.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -28,6 +30,7 @@ public class CompanyApplicationService {
     private final CompanyRepository companyRepository;
     private final CvDocumentRepository cvRepository;
     private final AnalysisReportRepository analysisRepository;
+    private final NotificationService notificationService;
 
     public List<ApplicationResponse> listForJob(User owner, UUID jobId) {
         JobPosting job = loadOwnedJob(owner, jobId);
@@ -68,8 +71,29 @@ public class CompanyApplicationService {
             throw ApiException.forbidden("APPLICATION_NOT_OWNED",
                     "This application belongs to another company");
         }
+        ApplicationStatus oldStatus = app.getStatus();
         app.setStatus(req.status());
         app = applicationRepository.save(app);
+
+        // Notify the candidate of status change
+        if (oldStatus != req.status()) {
+            try {
+                String tr = switch (req.status()) {
+                    case NEW -> "Yeni";
+                    case REVIEWING -> "İnceleniyor";
+                    case INTERVIEW -> "Mülakata davet edildin";
+                    case OFFERED -> "🎉 Teklif aldın";
+                    case REJECTED -> "Maalesef başvurun reddedildi";
+                };
+                notificationService.notify(
+                        app.getUser().getId(),
+                        NotificationType.APPLICATION_STATUS,
+                        "Başvuru durumu güncellendi · " + app.getJob().getTitle(),
+                        tr + " — " + app.getJob().getCompany().getName(),
+                        "/dashboard/applications"
+                );
+            } catch (Exception ignored) {}
+        }
         return ApplicationResponse.from(app);
     }
 

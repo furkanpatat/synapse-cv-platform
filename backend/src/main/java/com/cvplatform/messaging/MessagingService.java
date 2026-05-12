@@ -6,6 +6,8 @@ import com.cvplatform.company.CompanyRepository;
 import com.cvplatform.messaging.dto.ConversationDto;
 import com.cvplatform.messaging.dto.MessageDto;
 import com.cvplatform.messaging.dto.SendMessageRequest;
+import com.cvplatform.notifications.NotificationService;
+import com.cvplatform.notifications.NotificationType;
 import com.cvplatform.user.Role;
 import com.cvplatform.user.User;
 import com.cvplatform.user.UserRepository;
@@ -30,6 +32,7 @@ public class MessagingService {
     private final CompanyRepository companyRepository;
     private final UserRepository userRepository;
     private final SimpMessagingTemplate messagingTemplate;
+    private final NotificationService notificationService;
 
     public List<ConversationDto> listMyConversations(User caller) {
         List<Conversation> convs = (caller.getRole() == Role.COMPANY)
@@ -140,16 +143,40 @@ public class MessagingService {
     }
 
     private void notifyParticipants(Conversation conv, MessageDto dto) {
-        // Notify the candidate (user)
-        messagingTemplate.convertAndSendToUser(
-                conv.getUser().getId().toString(), "/queue/messages", dto);
-        // Notify the company owner
+        // Push the live message to both sides
+        UUID userId = conv.getUser().getId();
+        UUID companyOwnerId;
         try {
-            UUID companyOwnerId = conv.getCompany().getOwner().getId();
-            messagingTemplate.convertAndSendToUser(
-                    companyOwnerId.toString(), "/queue/messages", dto);
+            companyOwnerId = conv.getCompany().getOwner().getId();
         } catch (Exception ex) {
-            log.warn("Failed to push WS message to company owner: {}", ex.getMessage());
+            companyOwnerId = null;
+        }
+        messagingTemplate.convertAndSendToUser(userId.toString(), "/queue/messages", dto);
+        if (companyOwnerId != null) {
+            messagingTemplate.convertAndSendToUser(companyOwnerId.toString(), "/queue/messages", dto);
+        }
+
+        // Persist a notification for the other participant
+        try {
+            UUID recipientId =
+                    dto.senderId().equals(userId) ? companyOwnerId : userId;
+            if (recipientId != null) {
+                String otherSideLink =
+                        dto.senderId().equals(userId) ? "/company/messages" : "/dashboard/messages";
+                String preview = dto.body() == null ? ""
+                        : dto.body().length() > 80
+                            ? dto.body().substring(0, 80) + "..."
+                            : dto.body();
+                notificationService.notify(
+                        recipientId,
+                        NotificationType.NEW_MESSAGE,
+                        "Yeni mesaj · " + dto.senderName(),
+                        preview,
+                        otherSideLink
+                );
+            }
+        } catch (Exception ex) {
+            log.warn("Failed to persist notification for message: {}", ex.getMessage());
         }
     }
 }

@@ -1,15 +1,18 @@
 import { Client, IMessage } from "@stomp/stompjs";
 import SockJS from "sockjs-client";
 import type { MessageDto } from "@/types/messaging";
+import type { NotificationDto } from "@/types/notification";
 
 const WS_URL =
   process.env.NEXT_PUBLIC_WS_URL || "http://localhost:8080/api/ws";
 
-type Listener = (m: MessageDto) => void;
+type MessageListener = (m: MessageDto) => void;
+type NotificationListener = (n: NotificationDto) => void;
 
 export class MessagingSocket {
   private client: Client | null = null;
-  private listeners = new Set<Listener>();
+  private messageListeners = new Set<MessageListener>();
+  private notificationListeners = new Set<NotificationListener>();
 
   connect(accessToken: string) {
     if (this.client?.active) return;
@@ -22,9 +25,17 @@ export class MessagingSocket {
         this.client?.subscribe("/user/queue/messages", (frame: IMessage) => {
           try {
             const msg = JSON.parse(frame.body) as MessageDto;
-            this.listeners.forEach((l) => l(msg));
+            this.messageListeners.forEach((l) => l(msg));
           } catch {
-            // ignore parse errors
+            // ignore
+          }
+        });
+        this.client?.subscribe("/user/queue/notifications", (frame: IMessage) => {
+          try {
+            const n = JSON.parse(frame.body) as NotificationDto;
+            this.notificationListeners.forEach((l) => l(n));
+          } catch {
+            // ignore
           }
         });
       },
@@ -38,12 +49,18 @@ export class MessagingSocket {
   disconnect() {
     this.client?.deactivate();
     this.client = null;
-    this.listeners.clear();
+    this.messageListeners.clear();
+    this.notificationListeners.clear();
   }
 
-  onMessage(listener: Listener): () => void {
-    this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
+  onMessage(listener: MessageListener): () => void {
+    this.messageListeners.add(listener);
+    return () => this.messageListeners.delete(listener);
+  }
+
+  onNotification(listener: NotificationListener): () => void {
+    this.notificationListeners.add(listener);
+    return () => this.notificationListeners.delete(listener);
   }
 }
 

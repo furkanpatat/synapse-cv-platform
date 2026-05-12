@@ -14,6 +14,7 @@ import { useEffect, useState } from "react";
 
 import { useAuthStore } from "@/lib/auth-store";
 import { authApi } from "@/lib/auth-api";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 import type { Role } from "@/types/auth";
 
 export interface NavItem {
@@ -101,6 +102,10 @@ export function DashboardShell({
         grad={grad}
         onLogout={handleLogout}
       />
+      {/* Desktop top-right floating bell */}
+      <div className="fixed right-6 top-5 z-40 hidden lg:block">
+        <NotificationBell />
+      </div>
       <MobileBar
         theme={theme}
         toggleTheme={toggleTheme}
@@ -223,6 +228,7 @@ function MobileBar({
         Synapse
       </Link>
       <div className="flex items-center gap-2">
+        <NotificationBell />
         <button type="button" onClick={toggleTheme} className="icon-btn" aria-label="Tema">
           {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
         </button>
