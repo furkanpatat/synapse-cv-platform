@@ -4,9 +4,11 @@ import com.cvplatform.admin.dto.AdminCompanyDto;
 import com.cvplatform.admin.dto.AdminStats;
 import com.cvplatform.admin.dto.AdminUserDto;
 import com.cvplatform.user.SubscriptionType;
+import com.cvplatform.user.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -32,17 +34,19 @@ public class AdminController {
     }
 
     @PutMapping("/users/{id}/ban")
-    public ResponseEntity<AdminUserDto> ban(@PathVariable UUID id,
+    public ResponseEntity<AdminUserDto> ban(@AuthenticationPrincipal User admin,
+                                            @PathVariable UUID id,
                                             @RequestBody Map<String, Boolean> body) {
         boolean banned = body.getOrDefault("banned", true);
-        return ResponseEntity.ok(service.setBanned(id, banned));
+        return ResponseEntity.ok(service.setBanned(admin, id, banned));
     }
 
     @PutMapping("/users/{id}/plan")
-    public ResponseEntity<AdminUserDto> setPlan(@PathVariable UUID id,
+    public ResponseEntity<AdminUserDto> setPlan(@AuthenticationPrincipal User admin,
+                                                @PathVariable UUID id,
                                                 @RequestBody Map<String, String> body) {
         SubscriptionType plan = SubscriptionType.valueOf(body.get("plan"));
-        return ResponseEntity.ok(service.setPlan(id, plan));
+        return ResponseEntity.ok(service.setPlan(admin, id, plan));
     }
 
     @GetMapping("/companies")
@@ -51,9 +55,10 @@ public class AdminController {
     }
 
     @PutMapping("/companies/{id}/verify")
-    public ResponseEntity<AdminCompanyDto> verify(@PathVariable UUID id,
+    public ResponseEntity<AdminCompanyDto> verify(@AuthenticationPrincipal User admin,
+                                                  @PathVariable UUID id,
                                                   @RequestBody Map<String, Boolean> body) {
         boolean verified = body.getOrDefault("verified", true);
-        return ResponseEntity.ok(service.setVerified(id, verified));
+        return ResponseEntity.ok(service.setVerified(admin, id, verified));
     }
 }

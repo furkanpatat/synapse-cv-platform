@@ -2,6 +2,8 @@ package com.cvplatform.jobs;
 
 import com.cvplatform.analysis.AnalysisReport;
 import com.cvplatform.analysis.AnalysisReportRepository;
+import com.cvplatform.audit.AuditEventType;
+import com.cvplatform.audit.AuditService;
 import com.cvplatform.common.ApiException;
 import com.cvplatform.cv.CvDocument;
 import com.cvplatform.cv.CvDocumentRepository;
@@ -35,6 +37,7 @@ public class PublicJobService {
     private final com.cvplatform.subscription.QuotaService quotaService;
     private final NotificationService notificationService;
     private final EmbeddingClient embeddingClient;
+    private final AuditService auditService;
 
     public Page<JobResponse> listActive(int page, int size) {
         Page<JobPosting> jobs = jobRepository.findAllByStatus(
@@ -100,6 +103,13 @@ public class PublicJobService {
         } catch (Exception ignored) {
             // notification is non-critical
         }
+
+        auditService.log(AuditEventType.APPLICATION_SUBMITTED, user,
+                "application", app.getId().toString(),
+                "Başvuru yapıldı: " + job.getTitle(),
+                Map.of("jobId", job.getId().toString(),
+                       "aiScore", aiScore == null ? -1 : aiScore,
+                       "atsScore", atsScore == null ? -1 : atsScore));
 
         return ApplicationResponse.from(app);
     }

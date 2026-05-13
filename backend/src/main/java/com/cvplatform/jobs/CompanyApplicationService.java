@@ -2,6 +2,8 @@ package com.cvplatform.jobs;
 
 import com.cvplatform.analysis.AnalysisReport;
 import com.cvplatform.analysis.AnalysisReportRepository;
+import com.cvplatform.audit.AuditEventType;
+import com.cvplatform.audit.AuditService;
 import com.cvplatform.common.ApiException;
 import com.cvplatform.company.Company;
 import com.cvplatform.company.CompanyRepository;
@@ -31,6 +33,7 @@ public class CompanyApplicationService {
     private final CvDocumentRepository cvRepository;
     private final AnalysisReportRepository analysisRepository;
     private final NotificationService notificationService;
+    private final AuditService auditService;
 
     public List<ApplicationResponse> listForJob(User owner, UUID jobId) {
         JobPosting job = loadOwnedJob(owner, jobId);
@@ -93,6 +96,11 @@ public class CompanyApplicationService {
                         "/dashboard/applications"
                 );
             } catch (Exception ignored) {}
+            auditService.log(AuditEventType.APPLICATION_STATUS_CHANGED, owner,
+                    "application", app.getId().toString(),
+                    "Başvuru durumu " + oldStatus + " → " + req.status() + " (" + app.getJob().getTitle() + ")",
+                    Map.of("from", oldStatus.name(), "to", req.status().name(),
+                           "jobId", app.getJob().getId().toString()));
         }
         return ApplicationResponse.from(app);
     }

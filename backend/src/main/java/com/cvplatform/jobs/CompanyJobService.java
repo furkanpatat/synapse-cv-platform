@@ -1,5 +1,7 @@
 package com.cvplatform.jobs;
 
+import com.cvplatform.audit.AuditEventType;
+import com.cvplatform.audit.AuditService;
 import com.cvplatform.common.ApiException;
 import com.cvplatform.company.Company;
 import com.cvplatform.company.CompanyRepository;
@@ -11,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -22,6 +25,7 @@ public class CompanyJobService {
     private final CompanyRepository companyRepository;
     private final ApplicationRepository applicationRepository;
     private final com.cvplatform.subscription.QuotaService quotaService;
+    private final AuditService auditService;
 
     public List<JobResponse> listMyJobs(User owner) {
         Company company = ownedCompany(owner);
@@ -58,6 +62,9 @@ public class CompanyJobService {
                 .status(requested)
                 .build();
         job = jobRepository.save(job);
+        auditService.log(AuditEventType.JOB_CREATED, owner, "job", job.getId().toString(),
+                "İlan oluşturuldu: " + job.getTitle(),
+                Map.of("status", job.getStatus().name(), "company", company.getName()));
         return JobResponse.from(job, 0L);
     }
 
@@ -90,13 +97,19 @@ public class CompanyJobService {
         if (req.requiredSkills() != null) job.setRequiredSkills(req.requiredSkills());
         if (req.status() != null) job.setStatus(req.status());
         job = jobRepository.save(job);
+        auditService.log(AuditEventType.JOB_UPDATED, owner, "job", job.getId().toString(),
+                "İlan güncellendi: " + job.getTitle(),
+                Map.of("status", job.getStatus().name()));
         return JobResponse.from(job, applicationRepository.countByJob_Id(jobId));
     }
 
     @Transactional
     public void delete(User owner, UUID jobId) {
         JobPosting job = loadOwned(owner, jobId);
+        String title = job.getTitle();
         jobRepository.delete(job);
+        auditService.log(AuditEventType.JOB_DELETED, owner, "job", jobId.toString(),
+                "İlan silindi: " + title, Map.of());
     }
 
     private Company ownedCompany(User owner) {

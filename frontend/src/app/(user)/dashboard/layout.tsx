@@ -11,6 +11,7 @@ import {
   Crown,
   Bookmark,
   Video,
+  Activity,
 } from "lucide-react";
 
 import { useRequireRole } from "@/lib/use-require-role";
@@ -43,6 +44,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       ]}
       accountItems={[
         { href: "/dashboard/profile", label: "Profil", icon: User },
+        { href: "/dashboard/activity", label: "Aktivite", icon: Activity },
         { href: "/dashboard/billing", label: "Abonelik", icon: Crown },
       ]}
     >

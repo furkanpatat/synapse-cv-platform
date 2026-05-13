@@ -9,6 +9,8 @@ import com.cvplatform.auth.token.EmailVerificationToken;
 import com.cvplatform.auth.token.EmailVerificationTokenRepository;
 import com.cvplatform.auth.token.RefreshToken;
 import com.cvplatform.auth.token.RefreshTokenRepository;
+import com.cvplatform.audit.AuditEventType;
+import com.cvplatform.audit.AuditService;
 import com.cvplatform.common.ApiException;
 import com.cvplatform.company.Company;
 import com.cvplatform.company.CompanyRepository;
@@ -45,6 +47,7 @@ public class AuthService {
     private final JwtService jwtService;
     private final JwtProperties jwtProperties;
     private final MailService mailService;
+    private final AuditService auditService;
 
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
@@ -95,20 +98,28 @@ public class AuthService {
                 .build());
         mailService.sendVerificationEmail(user.getEmail(), verifyToken);
 
+        auditService.log(AuditEventType.REGISTER, user,
+                "Yeni hesap: " + user.getEmail() + " (" + user.getRole() + ")");
         return issueTokens(user);
     }
 
     @Transactional
     public AuthResponse login(LoginRequest req) {
-        User user = userRepository.findByEmail(req.email().toLowerCase().trim())
-                .orElseThrow(() -> ApiException.unauthorized("INVALID_CREDENTIALS",
-                        "Invalid email or password"));
+        String email = req.email() == null ? "" : req.email().toLowerCase().trim();
+        User user = userRepository.findByEmail(email).orElse(null);
+        if (user == null) {
+            auditService.logLoginFailed(email, "user_not_found");
+            throw ApiException.unauthorized("INVALID_CREDENTIALS", "Invalid email or password");
+        }
         if (user.isBanned()) {
+            auditService.logLoginFailed(email, "banned");
             throw ApiException.forbidden("USER_BANNED", "Account is banned");
         }
         if (!passwordEncoder.matches(req.password(), user.getPasswordHash())) {
+            auditService.logLoginFailed(email, "bad_password");
             throw ApiException.unauthorized("INVALID_CREDENTIALS", "Invalid email or password");
         }
+        auditService.log(AuditEventType.LOGIN_SUCCESS, user, "Giriş yapıldı");
         return issueTokens(user);
     }
 

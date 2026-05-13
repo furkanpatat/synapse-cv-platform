@@ -1,5 +1,7 @@
 package com.cvplatform.subscription;
 
+import com.cvplatform.audit.AuditEventType;
+import com.cvplatform.audit.AuditService;
 import com.cvplatform.common.ApiException;
 import com.cvplatform.user.SubscriptionType;
 import com.cvplatform.user.User;
@@ -19,6 +21,7 @@ public class BillingController {
 
     private final QuotaService quotaService;
     private final UserRepository userRepository;
+    private final AuditService auditService;
 
     @GetMapping("/me")
     public ResponseEntity<BillingMeResponse> me(@AuthenticationPrincipal User user) {
@@ -44,8 +47,13 @@ public class BillingController {
             throw ApiException.badRequest("INVALID_PLAN", "Unknown plan: " + planStr);
         }
         User managed = userRepository.findById(user.getId()).orElseThrow();
+        SubscriptionType old = managed.getSubscriptionType();
         managed.setSubscriptionType(plan);
         managed = userRepository.save(managed);
+        auditService.log(AuditEventType.BILLING_UPGRADED, managed,
+                "user", managed.getId().toString(),
+                "Plan değişti: " + old + " → " + plan,
+                Map.of("from", String.valueOf(old), "to", plan.name()));
         return ResponseEntity.ok(buildResponse(managed));
     }
 

@@ -1,5 +1,7 @@
 package com.cvplatform.interview;
 
+import com.cvplatform.audit.AuditEventType;
+import com.cvplatform.audit.AuditService;
 import com.cvplatform.common.ApiException;
 import com.cvplatform.company.Company;
 import com.cvplatform.company.CompanyRepository;
@@ -19,6 +21,7 @@ import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -33,6 +36,7 @@ public class InterviewService {
     private final ApplicationRepository applicationRepository;
     private final CompanyRepository companyRepository;
     private final NotificationService notificationService;
+    private final AuditService auditService;
 
     @Transactional
     public InterviewSession schedule(User companyOwner,
@@ -81,6 +85,12 @@ public class InterviewService {
         } catch (Exception ignored) {}
 
         eagerLoad(session);
+        auditService.log(AuditEventType.INTERVIEW_SCHEDULED, companyOwner,
+                "interview", session.getId().toString(),
+                "Mülakat planlandı: " + app.getJob().getTitle() + " · " + scheduledAt,
+                Map.of("applicationId", app.getId().toString(),
+                       "candidateId", app.getUser().getId().toString(),
+                       "durationMin", session.getDurationMin()));
         return session;
     }
 
@@ -135,6 +145,9 @@ public class InterviewService {
             s.setStatus(InterviewSession.Status.STARTED);
             s.setStartedAt(Instant.now());
             repository.save(s);
+            auditService.log(AuditEventType.INTERVIEW_STARTED, caller,
+                    "interview", s.getId().toString(), "Mülakat başladı",
+                    Map.of("token", token));
         }
         return s;
     }
@@ -146,6 +159,9 @@ public class InterviewService {
             s.setStatus(InterviewSession.Status.ENDED);
             s.setEndedAt(Instant.now());
             repository.save(s);
+            auditService.log(AuditEventType.INTERVIEW_ENDED, caller,
+                    "interview", s.getId().toString(), "Mülakat sonlandırıldı",
+                    Map.of("token", token));
         }
         return s;
     }

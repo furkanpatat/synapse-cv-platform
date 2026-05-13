@@ -7,6 +7,7 @@ import {
   Building2,
   BarChart3,
   Video,
+  Activity,
 } from "lucide-react";
 
 import { useRequireRole } from "@/lib/use-require-role";
@@ -36,6 +37,7 @@ export default function CompanyLayout({ children }: { children: React.ReactNode 
       ]}
       accountItems={[
         { href: "/company/profile", label: "Şirket Profili", icon: Building2 },
+        { href: "/company/activity", label: "Aktivite", icon: Activity },
       ]}
     >
       {children}

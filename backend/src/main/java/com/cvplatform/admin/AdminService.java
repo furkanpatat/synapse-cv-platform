@@ -3,6 +3,8 @@ package com.cvplatform.admin;
 import com.cvplatform.admin.dto.AdminCompanyDto;
 import com.cvplatform.admin.dto.AdminStats;
 import com.cvplatform.admin.dto.AdminUserDto;
+import com.cvplatform.audit.AuditEventType;
+import com.cvplatform.audit.AuditService;
 import com.cvplatform.common.ApiException;
 import com.cvplatform.company.Company;
 import com.cvplatform.company.CompanyRepository;
@@ -18,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -29,6 +32,7 @@ public class AdminService {
     private final CompanyRepository companyRepository;
     private final JobPostingRepository jobRepository;
     private final ApplicationRepository applicationRepository;
+    private final AuditService auditService;
 
     public AdminStats stats() {
         List<User> allUsers = userRepository.findAll();
@@ -63,29 +67,46 @@ public class AdminService {
     }
 
     @Transactional
-    public AdminUserDto setBanned(UUID userId, boolean banned) {
+    public AdminUserDto setBanned(User admin, UUID userId, boolean banned) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> ApiException.notFound("USER_NOT_FOUND", "User not found"));
         if (user.getRole() == Role.ADMIN) {
             throw ApiException.forbidden("CANNOT_BAN_ADMIN", "Admin accounts cannot be banned");
         }
         user.setBanned(banned);
-        return AdminUserDto.from(userRepository.save(user));
+        User saved = userRepository.save(user);
+        auditService.log(
+                banned ? AuditEventType.ADMIN_USER_BANNED : AuditEventType.ADMIN_USER_UNBANNED,
+                admin, "user", userId.toString(),
+                (banned ? "Kullanıcı banlandı: " : "Kullanıcı ban kaldırıldı: ") + saved.getEmail(),
+                Map.of("targetEmail", saved.getEmail()));
+        return AdminUserDto.from(saved);
     }
 
     @Transactional
-    public AdminUserDto setPlan(UUID userId, SubscriptionType plan) {
+    public AdminUserDto setPlan(User admin, UUID userId, SubscriptionType plan) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> ApiException.notFound("USER_NOT_FOUND", "User not found"));
+        SubscriptionType old = user.getSubscriptionType();
         user.setSubscriptionType(plan);
-        return AdminUserDto.from(userRepository.save(user));
+        User saved = userRepository.save(user);
+        auditService.log(AuditEventType.ADMIN_PLAN_CHANGED, admin,
+                "user", userId.toString(),
+                "Plan değiştirildi: " + saved.getEmail() + " (" + old + " → " + plan + ")",
+                Map.of("from", String.valueOf(old), "to", plan.name()));
+        return AdminUserDto.from(saved);
     }
 
     @Transactional
-    public AdminCompanyDto setVerified(UUID companyId, boolean verified) {
+    public AdminCompanyDto setVerified(User admin, UUID companyId, boolean verified) {
         Company company = companyRepository.findById(companyId)
                 .orElseThrow(() -> ApiException.notFound("COMPANY_NOT_FOUND", "Company not found"));
         company.setVerified(verified);
-        return AdminCompanyDto.from(companyRepository.save(company));
+        Company saved = companyRepository.save(company);
+        auditService.log(AuditEventType.ADMIN_COMPANY_VERIFIED, admin,
+                "company", companyId.toString(),
+                (verified ? "Şirket doğrulandı: " : "Şirket doğrulaması kaldırıldı: ") + saved.getName(),
+                Map.of("verified", verified));
+        return AdminCompanyDto.from(saved);
     }
 }
