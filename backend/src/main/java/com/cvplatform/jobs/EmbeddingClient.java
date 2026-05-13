@@ -64,4 +64,40 @@ public class EmbeddingClient {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record MatchResponse(List<MatchHit> hits) {}
+
+    // ===== skill graph =====
+
+    public GraphResponse cluster(List<String> skills,
+                                 double edgeThreshold,
+                                 int maxEdgesPerSkill) {
+        if (skills == null || skills.isEmpty()) {
+            return new GraphResponse(List.of(), List.of());
+        }
+        Map<String, Object> req = Map.of(
+                "skills", skills,
+                "edgeThreshold", edgeThreshold,
+                "maxEdgesPerSkill", maxEdgesPerSkill
+        );
+        try {
+            GraphResponse body = restClient.post()
+                    .uri("/v1/embeddings/cluster")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(req)
+                    .retrieve()
+                    .body(GraphResponse.class);
+            return body == null ? new GraphResponse(List.of(), List.of()) : body;
+        } catch (Exception ex) {
+            log.warn("Skill cluster failed, returning empty graph: {}", ex.getMessage());
+            return new GraphResponse(List.of(), List.of());
+        }
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record GraphNode(String id, int cluster) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record GraphEdge(String source, String target, double weight) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record GraphResponse(List<GraphNode> nodes, List<GraphEdge> edges) {}
 }
