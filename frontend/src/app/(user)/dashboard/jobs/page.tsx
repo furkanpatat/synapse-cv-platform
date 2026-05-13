@@ -20,18 +20,20 @@ export default function JobsListPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([
-      userJobsApi.list(0, 50).then((p) => p.content),
-      userJobsApi.recommended(6).catch(() => []),
-    ])
-      .then(([all, rec]) => {
-        setJobs(all);
-        setRecommended(rec);
-      })
+    // Show all jobs immediately — recommended is slow (embedding service),
+    // load it in the background so the list isn't blocked.
+    userJobsApi
+      .list(0, 50)
+      .then((p) => setJobs(p.content))
       .catch((err: AxiosError<ApiError>) => {
         setError(err.response?.data?.message ?? "İlanlar yüklenemedi");
       })
       .finally(() => setLoading(false));
+
+    userJobsApi
+      .recommended(6)
+      .then(setRecommended)
+      .catch(() => setRecommended([]));
   }, []);
 
   const filtered = useMemo(() => {

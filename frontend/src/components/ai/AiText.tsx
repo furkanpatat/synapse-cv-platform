@@ -1,23 +1,27 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface Props {
   text: string;
   /** Show blinking caret while typing. Default true */
   caret?: boolean;
-  /** ms per 2 chars */
+  /** ms per chunk (faster = smaller). Default 8 */
   speed?: number;
   className?: string;
 }
 
 /**
- * Typing-reveal display for AI generated text. When `text` changes, restarts
- * the animation.
+ * Typing-reveal display for AI generated text. Animates in chunks so even
+ * long responses finish in <1.5 s. Falls back to instant render for very
+ * long texts to avoid stuck mid-word states.
  */
-export function AiText({ text, caret = true, speed = 16, className }: Props) {
+export function AiText({ text, caret = true, speed = 8, className }: Props) {
   const [shown, setShown] = useState("");
   const [done, setDone] = useState(false);
+  // Keep latest text in a ref so cleanups don't drop the final value.
+  const textRef = useRef(text);
+  textRef.current = text;
 
   useEffect(() => {
     setShown("");
@@ -26,9 +30,19 @@ export function AiText({ text, caret = true, speed = 16, className }: Props) {
       setDone(true);
       return;
     }
+    // For long outputs (>600 chars) skip animation entirely — typing through
+    // a 2k char response is annoying and prone to stuck states on re-render.
+    if (text.length > 600) {
+      setShown(text);
+      setDone(true);
+      return;
+    }
+    // Animate: ~80 frames total regardless of length
+    const totalFrames = 80;
+    const charsPerFrame = Math.max(1, Math.ceil(text.length / totalFrames));
     let i = 0;
     const id = setInterval(() => {
-      i += 2;
+      i += charsPerFrame;
       if (i >= text.length) {
         setShown(text);
         setDone(true);
@@ -37,7 +51,13 @@ export function AiText({ text, caret = true, speed = 16, className }: Props) {
         setShown(text.slice(0, i));
       }
     }, speed);
-    return () => clearInterval(id);
+    return () => {
+      clearInterval(id);
+      // Ensure the full text is shown if the effect is torn down mid-animation
+      // (e.g., React strict-mode double-invoke, parent re-render with same prop).
+      setShown(textRef.current);
+      setDone(true);
+    };
   }, [text, speed]);
 
   return (

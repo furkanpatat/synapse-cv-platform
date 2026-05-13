@@ -80,23 +80,52 @@ public class InterviewService {
             );
         } catch (Exception ignored) {}
 
+        eagerLoad(session);
         return session;
     }
 
     public InterviewSession getByToken(String token) {
-        return repository.findByRoomToken(token)
+        InterviewSession s = repository.findByRoomToken(token)
                 .orElseThrow(() -> ApiException.notFound("INTERVIEW_NOT_FOUND",
                         "Interview session not found"));
+        eagerLoad(s);
+        return s;
     }
 
     public List<InterviewSession> listMine(User user) {
+        List<InterviewSession> list;
         if (user.getRole() == Role.COMPANY) {
             Company company = companyRepository.findByOwner_Id(user.getId())
                     .orElseThrow(() -> ApiException.notFound("COMPANY_NOT_FOUND",
                             "No company associated with this account"));
-            return repository.findAllByApplication_Job_Company_IdOrderByScheduledAtDesc(company.getId());
+            list = repository.findAllByApplication_Job_Company_IdOrderByScheduledAtDesc(company.getId());
+        } else {
+            list = repository.findAllByApplication_User_IdOrderByScheduledAtDesc(user.getId());
         }
-        return repository.findAllByApplication_User_IdOrderByScheduledAtDesc(user.getId());
+        list.forEach(this::eagerLoad);
+        return list;
+    }
+
+    /**
+     * Touch the lazy associations that {@code InterviewDto.from(...)} reads, so
+     * the DTO can be built outside the transactional scope without hitting
+     * {@code LazyInitializationException}.
+     */
+    private void eagerLoad(InterviewSession s) {
+        Application app = s.getApplication();
+        if (app == null) return;
+        User candidate = app.getUser();
+        if (candidate != null) {
+            candidate.getFirstName();
+            candidate.getLastName();
+            candidate.getEmail();
+        }
+        if (app.getJob() != null) {
+            app.getJob().getTitle();
+            if (app.getJob().getCompany() != null) {
+                app.getJob().getCompany().getName();
+            }
+        }
     }
 
     @Transactional

@@ -105,6 +105,13 @@ export default function JobDetailPage() {
       .finally(() => setLoading(false));
     analysisApi.me().then(setAnalysis).catch(() => setAnalysis(null));
     billingApi.me().then(setBilling).catch(() => setBilling(null));
+    // Persist applied state across refresh: check if user already applied
+    userJobsApi
+      .myApplications()
+      .then((apps) => {
+        if (apps.some((a) => a.jobId === id)) setApplied(true);
+      })
+      .catch(() => {});
   }, [id]);
 
   const mySkillsList = analysis?.skillScores ?? [];

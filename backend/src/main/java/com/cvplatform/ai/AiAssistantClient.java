@@ -35,7 +35,10 @@ public class AiAssistantClient {
                 "systemPrompt", systemPrompt,
                 "userPrompt", userPrompt,
                 "temperature", temperature,
-                "maxOutputTokens", 900
+                // 4000 to leave room for Gemini 2.5 Flash's "thinking" pass —
+                // 900 was getting consumed by hidden reasoning, truncating the
+                // visible answer mid-sentence.
+                "maxOutputTokens", 4000
         );
         log.debug("Calling ai-service /v1/assistant/text (temp={})", temperature);
         TextResponse body = restClient.post()
