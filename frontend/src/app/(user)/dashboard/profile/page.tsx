@@ -21,6 +21,7 @@ import { useAuthStore } from "@/lib/auth-store";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { AiText } from "@/components/ai/AiText";
+import { TwoFactorCard } from "@/components/auth/TwoFactorCard";
 import type { ApiError, MeResponse } from "@/types/auth";
 import type { AnalysisReport } from "@/types/analysis";
 
@@ -354,6 +355,8 @@ export default function ProfilePage() {
                 <RefreshCcw size={12} /> Yeniden senkronize et
               </Link>
             </div>
+
+            <TwoFactorCard />
           </div>
         </aside>
       </div>

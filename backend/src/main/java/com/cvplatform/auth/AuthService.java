@@ -9,6 +9,7 @@ import com.cvplatform.auth.token.EmailVerificationToken;
 import com.cvplatform.auth.token.EmailVerificationTokenRepository;
 import com.cvplatform.auth.token.RefreshToken;
 import com.cvplatform.auth.token.RefreshTokenRepository;
+import com.cvplatform.auth.twofa.TotpService;
 import com.cvplatform.audit.AuditEventType;
 import com.cvplatform.audit.AuditService;
 import com.cvplatform.common.ApiException;
@@ -48,6 +49,7 @@ public class AuthService {
     private final JwtProperties jwtProperties;
     private final MailService mailService;
     private final AuditService auditService;
+    private final TotpService totpService;
 
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
@@ -115,9 +117,27 @@ public class AuthService {
             auditService.logLoginFailed(email, "banned");
             throw ApiException.forbidden("USER_BANNED", "Account is banned");
         }
+        if (user.getPasswordHash() == null) {
+            auditService.logLoginFailed(email, "no_password_oauth_only");
+            throw ApiException.unauthorized("OAUTH_ONLY_ACCOUNT",
+                    "Bu hesap sadece OAuth ile giriş yapıyor — Google/GitHub düğmesini kullan.");
+        }
         if (!passwordEncoder.matches(req.password(), user.getPasswordHash())) {
             auditService.logLoginFailed(email, "bad_password");
             throw ApiException.unauthorized("INVALID_CREDENTIALS", "Invalid email or password");
+        }
+        if (user.isTotpEnabled()) {
+            if (req.totpCode() == null || req.totpCode().isBlank()) {
+                // Signal the frontend to prompt for the 2FA code without
+                // revealing how far the credentials check got.
+                throw ApiException.unauthorized("TOTP_REQUIRED",
+                        "İki adımlı doğrulama kodu gerekli");
+            }
+            if (!totpService.verify(user.getTotpSecret(), req.totpCode())) {
+                auditService.logLoginFailed(email, "bad_totp");
+                throw ApiException.unauthorized("TOTP_INVALID",
+                        "İki adımlı doğrulama kodu hatalı");
+            }
         }
         auditService.log(AuditEventType.LOGIN_SUCCESS, user, "Giriş yapıldı");
         return issueTokens(user);

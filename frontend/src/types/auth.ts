@@ -46,6 +46,7 @@ export interface RegisterPayload {
 export interface LoginPayload {
   email: string;
   password: string;
+  totpCode?: string;
 }
 
 export interface ApiError {

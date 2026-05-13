@@ -16,6 +16,7 @@ import {
 import { companyApi } from "@/lib/company-api";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
+import { TwoFactorCard } from "@/components/auth/TwoFactorCard";
 import type { ApiError } from "@/types/auth";
 import type { CompanyResponse } from "@/types/jobs";
 
@@ -291,6 +292,8 @@ export default function CompanyProfilePage() {
                 )}
               </p>
             </div>
+
+            <TwoFactorCard />
           </div>
         </aside>
       </div>
