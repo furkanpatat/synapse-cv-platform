@@ -35,8 +35,15 @@ public class AnalysisReport {
     private List<Inconsistency> inconsistencies;
     private String summary;
 
+    /** PENDING when queued, RUNNING when worker picks it up, COMPLETED on success, FAILED on error. */
+    private Status status;
+    private String errorMessage;
+
     @CreatedDate
     private Instant createdAt;
+    private Instant completedAt;
+
+    public enum Status { PENDING, RUNNING, COMPLETED, FAILED }
 
     @Data @NoArgsConstructor @AllArgsConstructor @Builder
     public static class GithubSummary {

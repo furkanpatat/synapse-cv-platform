@@ -20,6 +20,8 @@ import { analysisApi } from "@/lib/analysis-api";
 import { billingApi } from "@/lib/billing-api";
 import { Button } from "@/components/ui/Button";
 import { QuotaBanner } from "@/components/QuotaBanner";
+import { useAuthStore } from "@/lib/auth-store";
+import { getMessagingSocket } from "@/lib/ws-client";
 import type { ApiError } from "@/types/auth";
 import type { BillingMeResponse } from "@/types/billing";
 import type {
@@ -56,7 +58,12 @@ export default function AnalysisPage() {
       .me()
       .then((r) => {
         setReport(r);
-        setPhase("result");
+        // If the latest report is still PENDING, show running state
+        if ((r as AnalysisReport & { status?: string }).status === "PENDING") {
+          setPhase("running");
+        } else {
+          setPhase("result");
+        }
       })
       .catch((err: AxiosError<ApiError>) => {
         if (err.response?.status === 404) {
@@ -67,6 +74,42 @@ export default function AnalysisPage() {
         }
       });
   }, []);
+
+  // Subscribe to ANALYSIS_COMPLETE notifications via WS to refresh the report
+  const accessToken = useAuthStore((s) => s.accessToken);
+  useEffect(() => {
+    if (!accessToken) return;
+    const socket = getMessagingSocket();
+    socket.connect(accessToken);
+    const unsub = socket.onNotification((n) => {
+      if (n.type === "ANALYSIS_COMPLETE") {
+        analysisApi
+          .me()
+          .then((r) => {
+            setReport(r);
+            setPhase("result");
+          })
+          .catch(() => {});
+      }
+    });
+    return unsub;
+  }, [accessToken]);
+
+  // Poll fallback while running, in case WS missed
+  useEffect(() => {
+    if (phase !== "running") return;
+    const poll = setInterval(async () => {
+      try {
+        const r = await analysisApi.me();
+        const status = (r as AnalysisReport & { status?: string }).status;
+        if (status === "COMPLETED" || status === "FAILED" || status === undefined) {
+          setReport(r);
+          setPhase("result");
+        }
+      } catch {}
+    }, 4000);
+    return () => clearInterval(poll);
+  }, [phase]);
 
   // Cycle loading steps while running
   useEffect(() => {
@@ -85,7 +128,14 @@ export default function AnalysisPage() {
     try {
       const r = await analysisApi.start();
       setReport(r);
-      setPhase("result");
+      // Backend now returns PENDING immediately — stay in running phase until
+      // WS notification or polling flips it.
+      const status = (r as AnalysisReport & { status?: string }).status;
+      if (status === "PENDING" || status === "RUNNING") {
+        setPhase("running");
+      } else {
+        setPhase("result");
+      }
     } catch (err) {
       const e = err as AxiosError<ApiError>;
       if (e.response?.status === 402 || e.response?.data?.code === "QUOTA_EXCEEDED") {

@@ -32,6 +32,8 @@ export interface Inconsistency {
   severity: Severity;
 }
 
+export type AnalysisStatus = "PENDING" | "RUNNING" | "COMPLETED" | "FAILED";
+
 export interface AnalysisReport {
   id: string;
   userId: string;
@@ -41,5 +43,8 @@ export interface AnalysisReport {
   summary: string;
   skillScores: SkillScore[];
   inconsistencies: Inconsistency[];
+  status?: AnalysisStatus;
+  errorMessage?: string | null;
   createdAt: string;
+  completedAt?: string | null;
 }

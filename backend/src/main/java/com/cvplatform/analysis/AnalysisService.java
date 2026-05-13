@@ -1,22 +1,19 @@
 package com.cvplatform.analysis;
 
+import com.cvplatform.analysis.queue.AnalysisJobMessage;
+import com.cvplatform.analysis.queue.AnalysisJobProducer;
 import com.cvplatform.common.ApiException;
-import com.cvplatform.cv.AiServiceClient;
 import com.cvplatform.cv.CvDocument;
 import com.cvplatform.cv.CvDocumentRepository;
-import com.cvplatform.notifications.NotificationService;
-import com.cvplatform.notifications.NotificationType;
 import com.cvplatform.subscription.QuotaService;
 import com.cvplatform.user.User;
 import com.cvplatform.user.UserRepository;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -32,11 +29,15 @@ public class AnalysisService {
     private final AnalysisReportRepository reportRepository;
     private final CvDocumentRepository cvRepository;
     private final UserRepository userRepository;
-    private final AiServiceClient aiServiceClient;
-    private final ObjectMapper objectMapper;
     private final QuotaService quotaService;
-    private final NotificationService notificationService;
+    private final AnalysisJobProducer jobProducer;
 
+    /**
+     * Validates and enqueues an analysis job. Returns immediately with a PENDING
+     * placeholder report. The ai-service worker consumes the job, performs GitHub
+     * fetch + Gemini skill verification, then publishes back to "analysis.complete"
+     * which is handled by AnalysisCompleteListener.
+     */
     @Transactional
     public AnalysisReport startAnalysis(UUID userId) {
         User user = userRepository.findById(userId)
@@ -57,24 +58,28 @@ public class AnalysisService {
         }
         List<String> cvSkills = cv.getSkills() == null ? List.of() : cv.getSkills();
 
-        Map<String, Object> aiResult = aiServiceClient.runAnalysis(userId, githubUsername, cvSkills);
-        AnalysisReport report = objectMapper.convertValue(aiResult, AnalysisReport.class);
-        report.setId(null);
-        report.setUserId(userId);
-        report.setGithubUsername(githubUsername);
-        AnalysisReport saved = reportRepository.save(report);
+        // Persist PENDING placeholder
+        AnalysisReport pending = AnalysisReport.builder()
+                .userId(userId)
+                .githubUsername(githubUsername)
+                .status(AnalysisReport.Status.PENDING)
+                .build();
+        AnalysisReport saved = reportRepository.save(pending);
 
+        // Hand off to worker
         try {
-            notificationService.notify(
-                    userId,
-                    NotificationType.ANALYSIS_COMPLETE,
-                    "AI yetkinlik raporun hazır ✨",
-                    "Genel skor " + (saved.getOverallScore() == null ? "—" : saved.getOverallScore())
-                            + "/100 — detayları görüntüle.",
-                    "/dashboard/analysis"
-            );
-        } catch (Exception ignored) {}
-
+            jobProducer.enqueue(new AnalysisJobMessage(
+                    saved.getId(),
+                    userId.toString(),
+                    githubUsername,
+                    cvSkills
+            ));
+        } catch (Exception ex) {
+            log.error("Failed to enqueue analysis job: {}", ex.getMessage(), ex);
+            saved.setStatus(AnalysisReport.Status.FAILED);
+            saved.setErrorMessage("Job kuyruğuna gönderilemedi: " + ex.getMessage());
+            reportRepository.save(saved);
+        }
         return saved;
     }
 
