@@ -15,6 +15,7 @@ import {
 import { notificationsApi } from "@/lib/notifications-api";
 import { useAuthStore } from "@/lib/auth-store";
 import { getMessagingSocket } from "@/lib/ws-client";
+import { toast } from "@/components/ui/Toast";
 import type { NotificationDto, NotificationType } from "@/types/notification";
 
 const ICONS: Record<NotificationType, LucideIcon> = {
@@ -53,6 +54,14 @@ export function NotificationBell() {
     const unsub = socket.onNotification((n) => {
       setItems((prev) => [n, ...prev].slice(0, 30));
       setUnread((u) => u + 1);
+      // Surface as a transient toast too
+      const tone: "ai" | "success" | "info" =
+        n.type === "ANALYSIS_COMPLETE"
+          ? "ai"
+          : n.type === "APPLICATION_STATUS"
+            ? "success"
+            : "info";
+      toast[tone](n.title, n.body ?? undefined);
     });
     return unsub;
   }, [accessToken]);

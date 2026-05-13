@@ -1,10 +1,13 @@
 package com.cvplatform.subscription;
 
 import com.cvplatform.common.ApiException;
+import com.cvplatform.common.CacheConfig;
 import com.cvplatform.user.SubscriptionType;
 import com.cvplatform.user.User;
 import com.cvplatform.user.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,8 +24,9 @@ public class BillingController {
     private final UserRepository userRepository;
 
     @GetMapping("/me")
-    public ResponseEntity<BillingMeResponse> me(@AuthenticationPrincipal User user) {
-        return ResponseEntity.ok(buildResponse(user));
+    @Cacheable(value = CacheConfig.BILLING_ME, key = "#user.id")
+    public BillingMeResponse me(@AuthenticationPrincipal User user) {
+        return buildResponse(user);
     }
 
     /**
@@ -31,6 +35,7 @@ public class BillingController {
      */
     @PostMapping("/upgrade")
     @Transactional
+    @CacheEvict(value = CacheConfig.BILLING_ME, key = "#user.id")
     public ResponseEntity<BillingMeResponse> upgrade(@AuthenticationPrincipal User user,
                                                      @RequestBody Map<String, String> body) {
         String planStr = body.get("plan");

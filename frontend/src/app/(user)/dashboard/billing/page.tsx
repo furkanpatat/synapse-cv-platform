@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Sparkles, Check, X, Crown, Zap, Wand2, Brain } from "lucide-react";
 
 import { billingApi } from "@/lib/billing-api";
+import { toast } from "@/components/ui/Toast";
 import type { BillingMeResponse, Usage } from "@/types/billing";
 
 type PlanKey = "FREE" | "PREMIUM" | "ENTERPRISE";
@@ -85,12 +86,13 @@ export default function BillingPage() {
     try {
       const next = await billingApi.upgrade(plan);
       setData(next);
-      setSuccess(
-        plan === "FREE"
-          ? "FREE plana geçtin."
-          : `Plan ${plan} olarak güncellendi. Demo modu — gerçek ödeme yapılmadı.`
-      );
+      if (plan === "FREE") {
+        toast.success("Plan değiştirildi", "Artık FREE planındasın.");
+      } else {
+        toast.ai(`⭐ ${plan} aktif`, "Demo modu — gerçek ödeme yapılmadı.");
+      }
     } catch (e) {
+      toast.error("Plan güncellenemedi", "Lütfen tekrar dene veya admin'le iletişime geç.");
       setError("Plan güncellenemedi.");
     } finally {
       setUpgrading(null);

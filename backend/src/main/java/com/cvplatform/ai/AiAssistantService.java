@@ -36,6 +36,8 @@ public class AiAssistantService {
     private final AnalysisReportRepository analysisRepository;
     private final JobPostingRepository jobRepository;
     private final ApplicationRepository applicationRepository;
+    // NOTE: Per-user AI rate limiting is enforced at HTTP layer by
+    // AiRateLimitInterceptor (matches /v1/ai/**), so no per-method charging here.
 
     /* ============ 1. AI Cover Letter ============ */
     public String generateCoverLetter(UUID userId, UUID jobId) {
