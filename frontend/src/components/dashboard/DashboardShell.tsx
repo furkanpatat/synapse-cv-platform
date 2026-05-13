@@ -15,6 +15,7 @@ import { useEffect, useState } from "react";
 import { useAuthStore } from "@/lib/auth-store";
 import { authApi } from "@/lib/auth-api";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { SynapseAssistant } from "@/components/ai/SynapseAssistant";
 import type { Role } from "@/types/auth";
 
 export interface NavItem {
@@ -113,6 +114,7 @@ export function DashboardShell({
         grad={grad}
       />
       <main className="app-main">{children}</main>
+      <SynapseAssistant />
     </div>
   );
 }

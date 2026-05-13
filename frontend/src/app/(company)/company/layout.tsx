@@ -3,11 +3,9 @@
 import {
   LayoutDashboard,
   Briefcase,
-  Inbox,
-  Brain,
   MessageSquare,
   Building2,
-  Crown,
+  BarChart3,
 } from "lucide-react";
 
 import { useRequireRole } from "@/lib/use-require-role";
@@ -31,6 +29,7 @@ export default function CompanyLayout({ children }: { children: React.ReactNode 
       primaryItems={[
         { href: "/company", label: "Panel", icon: LayoutDashboard },
         { href: "/company/jobs", label: "İlanlarım", icon: Briefcase },
+        { href: "/company/analytics", label: "Analitik", icon: BarChart3 },
         { href: "/company/messages", label: "Mesajlar", icon: MessageSquare },
       ]}
       accountItems={[
