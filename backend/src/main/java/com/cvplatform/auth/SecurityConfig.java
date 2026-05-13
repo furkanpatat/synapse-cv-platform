@@ -66,6 +66,7 @@ public class SecurityConfig {
                         .requestMatchers("/v1/analytics/**").authenticated()
                         .requestMatchers("/v1/interviews/**").authenticated()
                         .requestMatchers("/v1/audit/**").authenticated()
+                        .requestMatchers("/v1/skills/**").authenticated()
                         .requestMatchers("/v1/ai/**").authenticated()
                         .requestMatchers("/v1/notifications/**").authenticated()
                         .anyRequest().authenticated()

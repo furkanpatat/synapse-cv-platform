@@ -13,6 +13,7 @@ import { AuthShell } from "@/components/auth/AuthShell";
 import { Field } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { authApi } from "@/lib/auth-api";
+import { oauthApi, type OAuthProvider } from "@/lib/oauth-api";
 import { useAuthStore } from "@/lib/auth-store";
 import { redirectPathForRole } from "@/lib/redirect-by-role";
 import type { ApiError } from "@/types/auth";
@@ -20,6 +21,7 @@ import type { ApiError } from "@/types/auth";
 const schema = z.object({
   email: z.string().email("Geçerli bir e-posta gir"),
   password: z.string().min(1, "Şifre gerekli"),
+  totpCode: z.string().optional(),
 });
 
 type Form = z.infer<typeof schema>;
@@ -29,6 +31,24 @@ export default function LoginPage() {
   const setSession = useAuthStore((s) => s.setSession);
   const [serverError, setServerError] = useState<string | null>(null);
   const [showPwd, setShowPwd] = useState(false);
+  const [needsTotp, setNeedsTotp] = useState(false);
+  const [oauthBusy, setOauthBusy] = useState<OAuthProvider | null>(null);
+
+  const startOAuth = async (provider: OAuthProvider) => {
+    setServerError(null);
+    setOauthBusy(provider);
+    try {
+      const url = await oauthApi.start(provider);
+      window.location.href = url;
+    } catch (err) {
+      const e = err as AxiosError<ApiError>;
+      setServerError(
+        e.response?.data?.message ??
+          `${provider} ile giriş başlatılamadı — sağlayıcı yapılandırılmış mı?`
+      );
+      setOauthBusy(null);
+    }
+  };
 
   const { register, handleSubmit, formState } = useForm<Form>({
     resolver: zodResolver(schema),
@@ -46,6 +66,16 @@ export default function LoginPage() {
       router.replace(redirectPathForRole(res.user.role));
     } catch (err) {
       const e = err as AxiosError<ApiError>;
+      const code = e.response?.data?.code;
+      if (code === "TOTP_REQUIRED") {
+        setNeedsTotp(true);
+        setServerError(null);
+        return;
+      }
+      if (code === "TOTP_INVALID") {
+        setServerError("İki adımlı doğrulama kodu hatalı. Tekrar dene.");
+        return;
+      }
       setServerError(e.response?.data?.message ?? "Giriş başarısız");
     }
   };
@@ -72,7 +102,12 @@ export default function LoginPage() {
       </p>
 
       <div className="grid grid-cols-2 gap-2">
-        <button type="button" className="social-btn">
+        <button
+          type="button"
+          className="social-btn disabled:opacity-60"
+          onClick={() => startOAuth("google")}
+          disabled={oauthBusy !== null}
+        >
           <svg width="16" height="16" viewBox="0 0 24 24">
             <path
               fill="#4285F4"
@@ -91,11 +126,16 @@ export default function LoginPage() {
               d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.05l3.66 2.84C6.71 7.31 9.14 5.38 12 5.38z"
             />
           </svg>
-          Google
+          {oauthBusy === "google" ? "Yönlendiriliyor..." : "Google"}
         </button>
-        <button type="button" className="social-btn">
+        <button
+          type="button"
+          className="social-btn disabled:opacity-60"
+          onClick={() => startOAuth("github")}
+          disabled={oauthBusy !== null}
+        >
           <Github size={16} />
-          GitHub
+          {oauthBusy === "github" ? "Yönlendiriliyor..." : "GitHub"}
         </button>
       </div>
 
@@ -130,6 +170,27 @@ export default function LoginPage() {
           error={formState.errors.password?.message}
           {...register("password")}
         />
+
+        {needsTotp && (
+          <div className="rounded-md border border-ai-2/30 bg-ai-2/5 p-3">
+            <div className="mb-1.5 font-mono text-[10.5px] uppercase tracking-[0.16em] text-ai-2">
+              <Sparkles size={11} className="inline" /> İki adımlı doğrulama
+            </div>
+            <p className="mb-2 text-[12.5px] text-text-2">
+              Authenticator uygulamandaki 6 haneli kodu gir.
+            </p>
+            <input
+              type="text"
+              inputMode="numeric"
+              maxLength={6}
+              autoComplete="one-time-code"
+              autoFocus
+              placeholder="123456"
+              className="w-full rounded-md border border-border bg-surface-2 px-3 py-2 text-center font-mono text-lg tracking-[0.4em] focus:border-text focus:outline-none"
+              {...register("totpCode")}
+            />
+          </div>
+        )}
 
         <div className="flex items-center justify-between text-[12.5px]">
           <label className="cbox">

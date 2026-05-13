@@ -75,6 +75,16 @@ app:
     from: noreply@cvplatform.local
   frontend:
     base-url: http://localhost:3000
+  oauth:
+    frontend-redirect: http://localhost:3000/oauth/finish
+    google:
+      client-id: ${GOOGLE_CLIENT_ID:}
+      client-secret: ${GOOGLE_CLIENT_SECRET:}
+      redirect-uri: ${GOOGLE_REDIRECT_URI:http://localhost:8080/api/v1/auth/oauth/google/callback}
+    github:
+      client-id: ${GITHUB_CLIENT_ID:}
+      client-secret: ${GITHUB_CLIENT_SECRET:}
+      redirect-uri: ${GITHUB_REDIRECT_URI:http://localhost:8080/api/v1/auth/oauth/github/callback}
 
 management:
   endpoints:

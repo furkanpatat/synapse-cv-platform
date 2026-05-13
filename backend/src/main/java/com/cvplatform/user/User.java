@@ -29,8 +29,27 @@ public class User {
     @Column(nullable = false, unique = true)
     private String email;
 
-    @Column(name = "password_hash", nullable = false)
+    /** Nullable to allow OAuth-only signups (no local password). */
+    @Column(name = "password_hash")
     private String passwordHash;
+
+    /** GOOGLE or GITHUB if the account was created via OAuth, else null. */
+    @Column(name = "oauth_provider", length = 20)
+    private String oauthProvider;
+
+    /** Provider's stable subject id (Google sub, GitHub user id). */
+    @Column(name = "oauth_subject", length = 255)
+    private String oauthSubject;
+
+    @Column(name = "avatar_url", length = 500)
+    private String avatarUrl;
+
+    @Column(name = "totp_secret", length = 64)
+    private String totpSecret;
+
+    @Column(name = "totp_enabled", nullable = false)
+    @Builder.Default
+    private boolean totpEnabled = false;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
