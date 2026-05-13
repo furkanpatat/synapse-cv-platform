@@ -9,6 +9,7 @@ import { useAuthStore } from "@/lib/auth-store";
 
 export function SynapseAssistant() {
   const accessToken = useAuthStore((s) => s.accessToken);
+  const role = useAuthStore((s) => s.user?.role);
   const [open, setOpen] = useState(false);
   const [history, setHistory] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
@@ -129,7 +130,7 @@ export function SynapseAssistant() {
           {/* Messages */}
           <div ref={scrollRef} className="flex-1 overflow-y-auto p-3.5">
             {history.length === 0 && !sending ? (
-              <Welcome onPick={(q) => setDraft(q)} />
+              <Welcome onPick={(q) => setDraft(q)} role={role} />
             ) : (
               <div className="space-y-2.5">
                 {history.map((m, i) => (
@@ -183,13 +184,29 @@ export function SynapseAssistant() {
   );
 }
 
-function Welcome({ onPick }: { onPick: (q: string) => void }) {
-  const samples = [
+const SAMPLES_BY_ROLE: Record<string, string[]> = {
+  USER: [
     "Bu hafta hangi ilana başvurmalıyım?",
     "CV'mi nasıl iyileştiririm?",
     "AI skorumu yorumlar mısın?",
     "Eksik yetkinliklerim neler?",
-  ];
+  ],
+  COMPANY: [
+    "En yüksek AI skorlu adaylar kimler?",
+    "Hangi ilanım az başvuru alıyor?",
+    "İlan açıklamamı nasıl iyileştiririm?",
+    "Aday değerlendirmede nelere dikkat etmeliyim?",
+  ],
+  ADMIN: [
+    "Sistem genel sağlığı nasıl?",
+    "Onay bekleyen şirket sayısı?",
+    "Bu ay büyüme nasıl?",
+    "Plan dağılımı nedir?",
+  ],
+};
+
+function Welcome({ onPick, role }: { onPick: (q: string) => void; role?: string }) {
+  const samples = SAMPLES_BY_ROLE[role ?? "USER"] ?? SAMPLES_BY_ROLE.USER;
   return (
     <div className="text-center py-8">
       <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl ai-grad text-white">
