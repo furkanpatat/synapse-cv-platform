@@ -18,8 +18,10 @@ import {
 } from "lucide-react";
 
 import { cvApi } from "@/lib/cv-api";
+import { aiApi } from "@/lib/ai-api";
 import type { CvResponse } from "@/types/cv";
 import { Button } from "@/components/ui/Button";
+import { AiText } from "@/components/ai/AiText";
 import type { ApiError } from "@/types/auth";
 
 export default function CvPage() {
@@ -28,6 +30,23 @@ export default function CvPage() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<string | null>(null);
+  const [suggestLoading, setSuggestLoading] = useState(false);
+  const [suggestError, setSuggestError] = useState<string | null>(null);
+
+  const fetchSuggestions = async () => {
+    setSuggestError(null);
+    setSuggestLoading(true);
+    try {
+      const txt = await aiApi.cvSuggestions();
+      setSuggestions(txt);
+    } catch (err) {
+      const e = err as AxiosError<ApiError>;
+      setSuggestError(e.response?.data?.message ?? "AI cevabı alınamadı");
+    } finally {
+      setSuggestLoading(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -115,7 +134,48 @@ export default function CvPage() {
       ) : !cv ? (
         <Dropzone onDrop={onDrop} onPick={() => fileInputRef.current?.click()} />
       ) : (
-        <CvView cv={cv} />
+        <>
+          <CvView cv={cv} />
+
+          {/* AI CV Suggestions */}
+          <div className="mt-5 rounded-[var(--radius-lg)] border border-ai-2/40 bg-surface p-7">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="flex items-center gap-2 text-[13px] font-medium">
+                <Sparkles size={14} className="text-ai-2" /> AI CV İyileştirme Önerileri
+              </h3>
+              {!suggestions && (
+                <button
+                  type="button"
+                  onClick={fetchSuggestions}
+                  disabled={suggestLoading}
+                  className="btn btn--ai btn--sm"
+                >
+                  {suggestLoading ? "Düşünüyor..." : (
+                    <>
+                      <Sparkles size={12} /> Önerileri al
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+            {suggestions ? (
+              <AiText
+                text={suggestions}
+                className="text-[13.5px] leading-[1.65] text-text"
+              />
+            ) : (
+              <p className="text-[13px] text-text-2">
+                AI&apos;dan CV&apos;ni inceleyip ATS skoru için anahtar kelime, eksik metric,
+                yeniden yazılması gereken cümleler üzerinde 5-7 somut öneri iste.
+              </p>
+            )}
+            {suggestError && (
+              <div className="mt-3 rounded-md border border-red-500/30 bg-red-500/10 p-2 text-xs text-red-300">
+                {suggestError}
+              </div>
+            )}
+          </div>
+        </>
       )}
     </>
   );

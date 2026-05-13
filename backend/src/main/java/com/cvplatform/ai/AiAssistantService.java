@@ -310,7 +310,208 @@ public class AiAssistantService {
         return client.generateText(system, userPrompt, 0.55);
     }
 
+    /* ============ 6. AI Interview Questions (COMPANY) ============ */
+    public String generateInterviewQuestions(UUID applicationId, UUID companyOwnerId) {
+        Application app = applicationRepository.findById(applicationId)
+                .orElseThrow(() -> ApiException.notFound("APPLICATION_NOT_FOUND", "Application not found"));
+        if (!app.getJob().getCompany().getOwner().getId().equals(companyOwnerId)) {
+            throw ApiException.forbidden("APPLICATION_NOT_OWNED",
+                    "This application belongs to another company");
+        }
+
+        UUID candidateId = app.getUser().getId();
+        CvDocument cv = cvRepository.findFirstByUserIdOrderByCreatedAtDesc(candidateId).orElse(null);
+        AnalysisReport analysis = analysisRepository
+                .findFirstByUserIdOrderByCreatedAtDesc(candidateId)
+                .orElse(null);
+
+        String system = """
+                Sen kıdemli bir teknik mülakat editörüsün. Verilen aday profiline ve iş ilanına
+                bakarak, bu mülakata özel 6-7 soru üret.
+
+                FORMAT (Markdown):
+                ## Teknik Sorular (3)
+                1. Soru? — kısa gerekçe (neden bu adaya bu soru?)
+                2. ...
+                3. ...
+
+                ## Davranışsal Sorular (2)
+                1. ...
+                2. ...
+
+                ## Senaryo / Vaka (1-2)
+                1. ...
+
+                KURALLAR:
+                - Türkçe.
+                - Adayın gerçek deneyimine, projelerine veya GitHub skill'lerine bağlı somut sorular.
+                - "Kendinden bahset" tarzı klişe sorulardan kaçın.
+                - Aday için AI tutarsızlık varsa onu netleştiren bir soru ekle.
+                """;
+
+        String userPrompt = String.format("""
+                ADAY: %s %s
+                İLAN: %s (Seviye: %s)
+                ARANAN SKILL'LER: %s
+
+                ADAYIN BEYAN ETTİĞİ SKILL'LER: %s
+                AI YETKİNLİK SKORU: %s
+
+                DENEYİM (kısaltılmış):
+                %s
+
+                AI TUTARSIZLIKLAR:
+                %s
+                """,
+                app.getUser().getFirstName(),
+                app.getUser().getLastName(),
+                app.getJob().getTitle(),
+                app.getJob().getLevel(),
+                joinList(app.getJob().getRequiredSkills()),
+                cv == null ? "—" : joinList(cv.getSkills()),
+                analysis == null || analysis.getOverallScore() == null ? "—" : analysis.getOverallScore() + "/100",
+                summarizeExperience(cv),
+                analysis == null || analysis.getInconsistencies() == null || analysis.getInconsistencies().isEmpty()
+                        ? "Yok"
+                        : analysis.getInconsistencies().stream()
+                            .map(i -> "- " + i.getClaimedSkill() + ": " + i.getIssue())
+                            .collect(Collectors.joining("\n"))
+        );
+
+        return client.generateText(system, userPrompt, 0.7);
+    }
+
+    /* ============ 7. AI CV Suggestions ============ */
+    public String generateCvSuggestions(UUID userId) {
+        CvDocument cv = mustCv(userId);
+        AnalysisReport analysis = analysisRepository
+                .findFirstByUserIdOrderByCreatedAtDesc(userId)
+                .orElse(null);
+
+        String system = """
+                Sen profesyonel bir CV editörüsün ve ATS (Applicant Tracking System) optimizasyon
+                uzmanısın. Aday CV'sine bakarak iyileştirme önerileri yap.
+
+                FORMAT (Markdown):
+                ## CV İyileştirme Önerileri
+
+                1. **[Başlık]**: kısa açıklama + somut örnek
+                2. **[Başlık]**: ...
+
+                5-7 madde olmalı.
+
+                KURALLAR:
+                - Türkçe.
+                - Genel klişeler değil, ADAYIN gerçek CV'sine özel öneriler yap.
+                - ATS skoru için anahtar kelime önerileri ekle.
+                - Eksik bölümleri (örn. metric'siz deneyim cümlesi → "%30 daha hızlı API" tarzı) işaret et.
+                - Tutarsızlık varsa onları gizlemek değil DÜZELTMEK için öneri ver.
+                """;
+
+        String userPrompt = String.format("""
+                CV ÖZETİ:
+                %s
+
+                SKILL'LER (%d adet): %s
+
+                DENEYİM:
+                %s
+
+                EĞİTİM:
+                %s
+
+                AI ANALİZ ÖZETİ:
+                %s
+
+                AI TUTARSIZLIKLAR:
+                %s
+                """,
+                truncate(cv.getSummary(), 800),
+                cv.getSkills() == null ? 0 : cv.getSkills().size(),
+                joinList(cv.getSkills()),
+                summarizeExperience(cv),
+                cv.getEducation() == null || cv.getEducation().isEmpty()
+                        ? "—"
+                        : cv.getEducation().stream()
+                            .map(e -> "- " + e.getSchool() + " · " + e.getDegree())
+                            .collect(Collectors.joining("\n")),
+                analysis == null ? "—" : truncate(analysis.getSummary(), 500),
+                analysis == null || analysis.getInconsistencies() == null || analysis.getInconsistencies().isEmpty()
+                        ? "Yok"
+                        : analysis.getInconsistencies().stream()
+                            .map(i -> "- " + i.getClaimedSkill() + ": " + i.getIssue())
+                            .collect(Collectors.joining("\n"))
+        );
+
+        return client.generateText(system, userPrompt, 0.6);
+    }
+
+    /* ============ 8. AI Job Description Generator (COMPANY) ============ */
+    public String generateJobDescription(JobDescriptionInput input) {
+        String system = """
+                Sen profesyonel bir İK / Talent Acquisition copywriter'ısın. Verilen rol özelliklerine
+                göre yüksek nitelikli bir iş ilanı açıklaması yaz.
+
+                FORMAT (Markdown):
+                ## Rol Hakkında
+                2-3 cümle: şirketin neyi olduğu, bu rolün hangi soruna cevap verdiği.
+
+                ## Sorumluluklar
+                - 5-6 madde, aksiyon fiilleriyle başla.
+
+                ## Aradığımız Profil
+                - 5-7 madde: must-have + nice-to-have ayır.
+
+                ## Sunduklarımız
+                - 3-4 madde: yan haklar, gelişim, kültür.
+
+                KURALLAR:
+                - Türkçe, samimi-profesyonel ton.
+                - Klişe ifadelerden kaçın ("dinamik takım oyuncusu" → spesifik beceri).
+                - Verilen skill listesini Sorumluluklar ve Aradığımız Profil arasında akıllıca dağıt.
+                """;
+
+        String userPrompt = String.format("""
+                ŞİRKET: %s
+                ROL BAŞLIĞI: %s
+                SEVİYE: %s
+                ÇALIŞMA ŞEKLİ: %s
+                ŞEHİR: %s
+                ARANAN SKILL'LER: %s
+                EK NOT / İPUCU: %s
+                """,
+                input.companyName() == null ? "—" : input.companyName(),
+                input.title() == null ? "—" : input.title(),
+                input.level() == null ? "—" : input.level(),
+                input.remoteType() == null ? "—" : input.remoteType(),
+                input.city() == null ? "—" : input.city(),
+                input.skills() == null || input.skills().isEmpty() ? "—" : String.join(", ", input.skills()),
+                input.notes() == null ? "—" : truncate(input.notes(), 400)
+        );
+
+        return client.generateText(system, userPrompt, 0.7);
+    }
+
+    public record JobDescriptionInput(
+            String companyName,
+            String title,
+            String level,
+            String remoteType,
+            String city,
+            List<String> skills,
+            String notes
+    ) {}
+
     /* ============ helpers ============ */
+
+    private String summarizeExperience(CvDocument cv) {
+        if (cv == null || cv.getExperience() == null || cv.getExperience().isEmpty()) return "—";
+        return cv.getExperience().stream()
+                .limit(3)
+                .map(e -> "- " + e.getRole() + " @ " + e.getCompany()
+                        + (e.getDescription() == null ? "" : ": " + truncate(e.getDescription(), 200)))
+                .collect(Collectors.joining("\n"));
+    }
 
     private User mustUser(UUID userId) {
         return userRepository.findById(userId)

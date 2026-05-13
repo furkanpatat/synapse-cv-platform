@@ -8,6 +8,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -53,5 +54,24 @@ public class AiAssistantController {
     public ResponseEntity<Map<String, String>> hiringBrief(@AuthenticationPrincipal User user,
                                                            @PathVariable UUID applicationId) {
         return ResponseEntity.ok(Map.of("text", service.generateHiringBrief(applicationId, user.getId())));
+    }
+
+    @GetMapping("/interview-questions/{applicationId}")
+    @PreAuthorize("hasRole('COMPANY')")
+    public ResponseEntity<Map<String, String>> interviewQuestions(@AuthenticationPrincipal User user,
+                                                                  @PathVariable UUID applicationId) {
+        return ResponseEntity.ok(Map.of("text", service.generateInterviewQuestions(applicationId, user.getId())));
+    }
+
+    @GetMapping("/cv-suggestions")
+    @PreAuthorize("hasRole('USER')")
+    public ResponseEntity<Map<String, String>> cvSuggestions(@AuthenticationPrincipal User user) {
+        return ResponseEntity.ok(Map.of("text", service.generateCvSuggestions(user.getId())));
+    }
+
+    @PostMapping("/job-description")
+    @PreAuthorize("hasRole('COMPANY')")
+    public ResponseEntity<Map<String, String>> jobDescription(@RequestBody AiAssistantService.JobDescriptionInput input) {
+        return ResponseEntity.ok(Map.of("text", service.generateJobDescription(input)));
     }
 }

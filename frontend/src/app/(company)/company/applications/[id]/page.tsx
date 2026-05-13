@@ -76,6 +76,22 @@ export default function CandidateDetailPage() {
   const [hiringBrief, setHiringBrief] = useState<string | null>(null);
   const [briefLoading, setBriefLoading] = useState(false);
   const [briefError, setBriefError] = useState<string | null>(null);
+  const [interview, setInterview] = useState<string | null>(null);
+  const [interviewLoading, setInterviewLoading] = useState(false);
+
+  const fetchInterview = async () => {
+    setBriefError(null);
+    setInterviewLoading(true);
+    try {
+      const txt = await aiApi.interviewQuestions(id);
+      setInterview(txt);
+    } catch (err) {
+      const e = err as AxiosError<ApiError>;
+      setBriefError(e.response?.data?.message ?? "AI cevabı alınamadı");
+    } finally {
+      setInterviewLoading(false);
+    }
+  };
 
   const fetchBrief = async () => {
     setBriefError(null);
@@ -275,6 +291,37 @@ export default function CandidateDetailPage() {
               <div className="mt-3 rounded-md border border-red-500/30 bg-red-500/10 p-2 text-xs text-red-300">
                 {briefError}
               </div>
+            )}
+          </div>
+
+          {/* AI Interview Questions */}
+          <div className="rounded-[var(--radius-lg)] border border-border bg-surface p-7">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="flex items-center gap-2 text-[13px] font-medium">
+                <Sparkles size={14} className="text-ai-2" /> AI Mülakat Soruları
+              </h3>
+              {!interview && (
+                <button
+                  type="button"
+                  onClick={fetchInterview}
+                  disabled={interviewLoading}
+                  className="btn btn--outline btn--sm"
+                >
+                  {interviewLoading ? "Düşünüyor..." : (
+                    <>
+                      <Sparkles size={12} /> Soruları üret
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+            {interview ? (
+              <AiText text={interview} className="text-[13.5px] leading-[1.65] text-text" />
+            ) : (
+              <p className="text-[13px] text-text-2">
+                AI&apos;dan bu aday için role özel mülakat soruları üret — teknik,
+                davranışsal ve senaryo bazlı, gerçek deneyimine bağlı.
+              </p>
             )}
           </div>
 

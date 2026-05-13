@@ -27,4 +27,27 @@ export const aiApi = {
     api
       .get<{ text: string }>(`/v1/ai/hiring-brief/${applicationId}`, longTimeout)
       .then((r) => r.data.text),
+
+  interviewQuestions: (applicationId: string) =>
+    api
+      .get<{ text: string }>(`/v1/ai/interview-questions/${applicationId}`, longTimeout)
+      .then((r) => r.data.text),
+
+  cvSuggestions: () =>
+    api
+      .get<{ text: string }>(`/v1/ai/cv-suggestions`, longTimeout)
+      .then((r) => r.data.text),
+
+  jobDescription: (payload: {
+    companyName?: string;
+    title?: string;
+    level?: string;
+    remoteType?: string;
+    city?: string;
+    skills?: string[];
+    notes?: string;
+  }) =>
+    api
+      .post<{ text: string }>(`/v1/ai/job-description`, payload, longTimeout)
+      .then((r) => r.data.text),
 };
