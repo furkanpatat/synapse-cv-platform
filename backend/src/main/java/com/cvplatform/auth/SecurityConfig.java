@@ -64,6 +64,7 @@ public class SecurityConfig {
                         .requestMatchers("/v1/companies/me/**", "/v1/companies/me").hasRole("COMPANY")
                         .requestMatchers("/v1/admin/**").hasRole("ADMIN")
                         .requestMatchers("/v1/analytics/**").authenticated()
+                        .requestMatchers("/v1/interviews/**").authenticated()
                         .requestMatchers("/v1/ai/**").authenticated()
                         .requestMatchers("/v1/notifications/**").authenticated()
                         .anyRequest().authenticated()

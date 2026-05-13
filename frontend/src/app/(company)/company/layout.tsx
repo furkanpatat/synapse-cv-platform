@@ -6,6 +6,7 @@ import {
   MessageSquare,
   Building2,
   BarChart3,
+  Video,
 } from "lucide-react";
 
 import { useRequireRole } from "@/lib/use-require-role";
@@ -30,6 +31,7 @@ export default function CompanyLayout({ children }: { children: React.ReactNode 
         { href: "/company", label: "Panel", icon: LayoutDashboard },
         { href: "/company/jobs", label: "İlanlarım", icon: Briefcase },
         { href: "/company/analytics", label: "Analitik", icon: BarChart3 },
+        { href: "/company/interviews", label: "Mülakatlar", icon: Video, badge: "AI" },
         { href: "/company/messages", label: "Mesajlar", icon: MessageSquare },
       ]}
       accountItems={[

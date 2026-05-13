@@ -19,6 +19,7 @@ import {
 import { companyApi } from "@/lib/company-api";
 import { messagingApi } from "@/lib/messaging-api";
 import { aiApi } from "@/lib/ai-api";
+import { ScheduleInterviewModal } from "@/components/interview/ScheduleInterviewModal";
 import { Button } from "@/components/ui/Button";
 import { ScoreRing } from "@/components/ui/ScoreRing";
 import { ApplicationStatusBadge } from "@/components/jobs/ApplicationStatusBadge";
@@ -78,6 +79,7 @@ export default function CandidateDetailPage() {
   const [briefError, setBriefError] = useState<string | null>(null);
   const [interview, setInterview] = useState<string | null>(null);
   const [interviewLoading, setInterviewLoading] = useState(false);
+  const [showSchedule, setShowSchedule] = useState(false);
 
   const fetchInterview = async () => {
     setBriefError(null);
@@ -469,8 +471,8 @@ export default function CandidateDetailPage() {
         <aside className="space-y-5">
           <div className="lg:sticky lg:top-6 space-y-5">
             {/* Contact */}
-            <div className="rounded-[var(--radius-lg)] border border-ai-2/30 bg-surface p-6">
-              <h3 className="mb-3 flex items-center gap-2 text-[13px] font-medium">
+            <div className="rounded-[var(--radius-lg)] border border-ai-2/30 bg-surface p-6 space-y-2">
+              <h3 className="mb-1 flex items-center gap-2 text-[13px] font-medium">
                 <MessageSquare size={14} className="text-ai-2" /> Adayla iletişim
               </h3>
               <Button
@@ -481,8 +483,16 @@ export default function CandidateDetailPage() {
               >
                 <MessageSquare size={14} /> Mesaj başlat
               </Button>
-              <p className="mt-2 font-mono text-[10.5px] uppercase tracking-wider text-text-muted text-center">
-                Otomatik karşılama gönderilir
+              <Button
+                onClick={() => setShowSchedule(true)}
+                variant="outline"
+                className="w-full"
+                type="button"
+              >
+                🎥 Video mülakat planla
+              </Button>
+              <p className="mt-1 font-mono text-[10.5px] uppercase tracking-wider text-text-muted text-center">
+                Tarayıcıda peer-to-peer · Zoom gerekmez
               </p>
             </div>
 
@@ -527,6 +537,15 @@ export default function CandidateDetailPage() {
           </div>
         </aside>
       </div>
+
+      {showSchedule && (
+        <ScheduleInterviewModal
+          applicationId={id}
+          candidateName={`${a.userFirstName ?? ""} ${a.userLastName ?? ""}`.trim()}
+          jobTitle={a.jobTitle}
+          onClose={() => setShowSchedule(false)}
+        />
+      )}
     </>
   );
 }

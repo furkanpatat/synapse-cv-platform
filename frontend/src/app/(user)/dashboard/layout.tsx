@@ -10,6 +10,7 @@ import {
   User,
   Crown,
   Bookmark,
+  Video,
 } from "lucide-react";
 
 import { useRequireRole } from "@/lib/use-require-role";
@@ -37,6 +38,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         { href: "/dashboard/jobs", label: "İlanlar", icon: Briefcase },
         { href: "/dashboard/saved", label: "Kayıtlılar", icon: Bookmark },
         { href: "/dashboard/applications", label: "Başvurularım", icon: Inbox },
+        { href: "/dashboard/interviews", label: "Mülakatlarım", icon: Video, badge: "AI" },
         { href: "/dashboard/messages", label: "Mesajlar", icon: MessageSquare },
       ]}
       accountItems={[
