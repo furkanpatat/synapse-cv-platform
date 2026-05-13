@@ -22,6 +22,7 @@ import { aiApi } from "@/lib/ai-api";
 import type { CvResponse } from "@/types/cv";
 import { Button } from "@/components/ui/Button";
 import { AiText } from "@/components/ai/AiText";
+import { toast } from "@/components/ui/Toast";
 import type { ApiError } from "@/types/auth";
 
 export default function CvPage() {
@@ -71,6 +72,10 @@ export default function CvPage() {
     try {
       const data = await cvApi.upload(file);
       setCv(data);
+      toast.success(
+        "CV ayrıştırıldı",
+        `${data.skills?.length ?? 0} yetkinlik tespit edildi.`
+      );
     } catch (err) {
       const e = err as AxiosError<ApiError>;
       setError(e.response?.data?.message ?? "Yükleme başarısız");

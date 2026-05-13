@@ -92,7 +92,12 @@ export default function RegisterPage() {
         refreshToken: res.refreshToken,
         user: res.user,
       });
-      router.replace(redirectPathForRole(res.user.role));
+      // New USER → onboarding wizard. COMPANY/ADMIN → role default.
+      if (res.user.role === "USER") {
+        router.replace("/onboarding");
+      } else {
+        router.replace(redirectPathForRole(res.user.role));
+      }
     } catch (err) {
       const e = err as AxiosError<ApiError>;
       setServerError(e.response?.data?.message ?? "Kayıt başarısız");

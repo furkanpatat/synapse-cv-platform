@@ -30,4 +30,16 @@ export const userJobsApi = {
 
   myApplications: () =>
     api.get<ApplicationResponse[]>("/v1/applications/me").then((r) => r.data),
+
+  save: (jobId: string) =>
+    api.post<{ saved: boolean }>(`/v1/jobs/${jobId}/save`).then((r) => r.data),
+
+  unsave: (jobId: string) =>
+    api.delete<{ saved: boolean }>(`/v1/jobs/${jobId}/save`).then((r) => r.data),
+
+  savedIds: () =>
+    api.get<string[]>("/v1/jobs/saved-ids").then((r) => r.data),
+
+  saved: () =>
+    api.get<JobResponse[]>("/v1/jobs/saved").then((r) => r.data),
 };
