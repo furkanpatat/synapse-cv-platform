@@ -2,16 +2,20 @@ package com.cvplatform.interview;
 
 import com.cvplatform.audit.AuditEventType;
 import com.cvplatform.audit.AuditService;
+import com.cvplatform.ai.AiAssistantClient;
 import com.cvplatform.common.ApiException;
 import com.cvplatform.company.Company;
 import com.cvplatform.company.CompanyRepository;
 import com.cvplatform.jobs.Application;
 import com.cvplatform.jobs.ApplicationRepository;
 import com.cvplatform.jobs.ApplicationStatus;
+import com.cvplatform.jobs.JobPosting;
 import com.cvplatform.notifications.NotificationService;
 import com.cvplatform.notifications.NotificationType;
 import com.cvplatform.user.Role;
 import com.cvplatform.user.User;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -37,6 +41,8 @@ public class InterviewService {
     private final CompanyRepository companyRepository;
     private final NotificationService notificationService;
     private final AuditService auditService;
+    private final AiAssistantClient aiClient;
+    private final ObjectMapper mapper = new ObjectMapper();
 
     @Transactional
     public InterviewSession schedule(User companyOwner,
@@ -178,6 +184,127 @@ public class InterviewService {
         if (!isCandidate && !isCompanyOwner) {
             throw ApiException.forbidden("INTERVIEW_NOT_PARTICIPANT",
                     "You are not a participant in this interview");
+        }
+        return s;
+    }
+
+    /**
+     * Called by the candidate's browser when the WebRTC interview ends.
+     * Stores the live-captured Web Speech transcript, then asks Gemini to
+     * score it against the job description. Audited as INTERVIEW_ENDED.
+     */
+    @Transactional
+    public InterviewSession submitTranscriptAndEvaluate(String token, User caller, String transcript) {
+        InterviewSession s = authorizeRoomAccess(token, caller);
+        if (transcript != null && !transcript.isBlank()) {
+            s.setCandidateTranscript(transcript.length() > 50000
+                    ? transcript.substring(0, 50000)
+                    : transcript);
+        }
+        Evaluation ev = evaluate(s);
+        s.setAiSummary(ev.summary);
+        s.setAiOverallScore(ev.overallScore);
+        s.setAiStrengths(ev.strengths);
+        s.setAiGaps(ev.gaps);
+        s.setAiRecommendation(ev.recommendation);
+        s.setAiEvaluatedAt(Instant.now());
+
+        if (s.getStatus() != InterviewSession.Status.ENDED) {
+            s.setStatus(InterviewSession.Status.ENDED);
+            s.setEndedAt(Instant.now());
+        }
+        repository.save(s);
+        auditService.log("interview.ai.evaluated", caller,
+                "interview", s.getId().toString(),
+                "AI mülakat değerlendirmesi üretildi",
+                Map.of("score", ev.overallScore, "reco", ev.recommendation));
+        eagerLoad(s);
+        return s;
+    }
+
+    private record Evaluation(int overallScore, String recommendation,
+                              String summary, List<String> strengths, List<String> gaps) {}
+
+    private Evaluation evaluate(InterviewSession s) {
+        // Pull the role context — job title + required skills.
+        JobPosting job = s.getApplication() == null ? null : s.getApplication().getJob();
+        String jobTitle = job == null ? "—" : job.getTitle();
+        String jobSkills = job == null || job.getRequiredSkills() == null
+                ? ""
+                : String.join(", ", job.getRequiredSkills());
+        String transcript = s.getCandidateTranscript();
+        if (transcript == null || transcript.isBlank()) {
+            return new Evaluation(0, "MAYBE",
+                    "Mülakat transkripti boş — adayın mikrofonu açık değil olabilir ya da çok kısa konuşmuş olabilir.",
+                    List.of(), List.of("Transkript yok — değerlendirme yapılamadı"));
+        }
+
+        String systemPrompt = """
+                Sen kıdemli bir İK / teknik mülakatçısın. Türkçe konuşuyorsun.
+                Sana bir mülakatın adayın sesinden üretilmiş canlı transkripti
+                veriliyor (Web Speech API ile, ufak hatalar olabilir). Pozisyon
+                başlığını ve aranan yetkinlikleri de veriyorum.
+
+                Görevin:
+                  - overallScore: 0-100 arası bir puan (cevapların kalitesi,
+                    role uyum, ifade gücü, somut örnekler)
+                  - recommendation: aşağıdakilerden biri kesinlikle:
+                      "HIRE"  (güçlü aday)
+                      "MAYBE" (orta — başka mülakat ile karar verilebilir)
+                      "PASS"  (uygun değil)
+                  - strengths: aday için 2-4 maddelik güçlü yönler
+                  - gaps: 2-4 maddelik eksik / geliştirilebilir alanlar
+                  - summary: 4-6 cümlelik genel İK değerlendirmesi (Türkçe)
+
+                Çıktı SADECE şu JSON yapısında olmalı, ek metin / fence YOK:
+                {
+                  "overallScore": 0,
+                  "recommendation": "HIRE",
+                  "strengths": [],
+                  "gaps": [],
+                  "summary": ""
+                }
+                """;
+        String userPrompt = "Pozisyon: " + jobTitle
+                + "\nAranan yetkinlikler: " + jobSkills
+                + "\n\nADAY TRANSKRİPTİ:\n" + transcript;
+
+        try {
+            String raw = aiClient.generateText(systemPrompt, userPrompt, 0.4);
+            String json = extractJson(raw);
+            Map<String, Object> parsed = mapper.readValue(json, new TypeReference<>() {});
+            int score = parseInt(parsed.get("overallScore"), 50);
+            String reco = String.valueOf(parsed.getOrDefault("recommendation", "MAYBE")).toUpperCase();
+            if (!List.of("HIRE", "MAYBE", "PASS").contains(reco)) reco = "MAYBE";
+            @SuppressWarnings("unchecked")
+            List<String> strengths = (List<String>) parsed.getOrDefault("strengths", List.of());
+            @SuppressWarnings("unchecked")
+            List<String> gaps = (List<String>) parsed.getOrDefault("gaps", List.of());
+            String summary = String.valueOf(parsed.getOrDefault("summary", ""));
+            return new Evaluation(score, reco, summary, strengths, gaps);
+        } catch (Exception ex) {
+            log.warn("Interview AI evaluation failed: {}", ex.toString());
+            return new Evaluation(50, "MAYBE",
+                    "AI değerlendirmesi üretilemedi — transkript kaydedildi, daha sonra tekrar denenebilir.",
+                    List.of(), List.of());
+        }
+    }
+
+    private static int parseInt(Object o, int fallback) {
+        if (o instanceof Number n) return n.intValue();
+        if (o instanceof String s) {
+            try { return Integer.parseInt(s.trim()); } catch (Exception ignored) {}
+        }
+        return fallback;
+    }
+
+    private static String extractJson(String raw) {
+        if (raw == null) return "{}";
+        String s = raw.trim();
+        int firstBrace = s.indexOf('{');
+        int lastBrace = s.lastIndexOf('}');
+        if (firstBrace >= 0 && lastBrace > firstBrace) {
+            return s.substring(firstBrace, lastBrace + 1);
         }
         return s;
     }

@@ -3,6 +3,7 @@ package com.cvplatform.interview.dto;
 import com.cvplatform.interview.InterviewSession;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 public record InterviewDto(
@@ -20,7 +21,14 @@ public record InterviewDto(
         String roomToken,
         String status,
         Instant startedAt,
-        Instant endedAt
+        Instant endedAt,
+        // AI post-interview evaluation
+        Integer aiOverallScore,
+        String aiRecommendation,
+        String aiSummary,
+        List<String> aiStrengths,
+        List<String> aiGaps,
+        Instant aiEvaluatedAt
 ) {
     public static InterviewDto from(InterviewSession s) {
         var app = s.getApplication();
@@ -43,7 +51,13 @@ public record InterviewDto(
                 s.getRoomToken(),
                 s.getStatus().name(),
                 s.getStartedAt(),
-                s.getEndedAt()
+                s.getEndedAt(),
+                s.getAiOverallScore(),
+                s.getAiRecommendation(),
+                s.getAiSummary(),
+                s.getAiStrengths(),
+                s.getAiGaps(),
+                s.getAiEvaluatedAt()
         );
     }
 }

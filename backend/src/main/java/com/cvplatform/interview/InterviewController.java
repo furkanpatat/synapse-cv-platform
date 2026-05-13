@@ -60,5 +60,21 @@ public class InterviewController {
         return ResponseEntity.ok(Map.of("ended", true));
     }
 
+    /**
+     * Called by the candidate's browser as the WebRTC call wraps up. Pushes
+     * the Web-Speech-captured transcript to the backend, which triggers a
+     * Gemini evaluation against the job description and returns the full
+     * (now-evaluated) session DTO.
+     */
+    @PostMapping("/{token}/evaluate")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<InterviewDto> evaluate(@AuthenticationPrincipal User user,
+                                                  @PathVariable String token,
+                                                  @RequestBody EvaluateBody body) {
+        return ResponseEntity.ok(InterviewDto.from(
+                service.submitTranscriptAndEvaluate(token, user, body.transcript())));
+    }
+
     public record ScheduleBody(String scheduledAt, Integer durationMin) {}
+    public record EvaluateBody(String transcript) {}
 }

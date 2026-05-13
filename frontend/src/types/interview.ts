@@ -16,4 +16,12 @@ export interface InterviewDto {
   status: InterviewStatus;
   startedAt: string | null;
   endedAt: string | null;
+  // AI evaluation — filled after the candidate ends the call and the
+  // backend sends the transcript to Gemini.
+  aiOverallScore: number | null;
+  aiRecommendation: "HIRE" | "MAYBE" | "PASS" | null;
+  aiSummary: string | null;
+  aiStrengths: string[] | null;
+  aiGaps: string[] | null;
+  aiEvaluatedAt: string | null;
 }

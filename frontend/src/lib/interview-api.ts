@@ -21,6 +21,15 @@ export const interviewApi = {
 
   end: (token: string) =>
     api.post<{ ended: boolean }>(`/v1/interviews/${token}/end`).then((r) => r.data),
+
+  /**
+   * Push the Web-Speech-captured transcript to the backend so Gemini can
+   * score the interview. Returns the fully-evaluated InterviewDto.
+   */
+  evaluate: (token: string, transcript: string) =>
+    api
+      .post<InterviewDto>(`/v1/interviews/${token}/evaluate`, { transcript })
+      .then((r) => r.data),
 };
 
 /** Browser-side ICS download for a scheduled interview. */

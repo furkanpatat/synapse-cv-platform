@@ -19,6 +19,7 @@ import SockJS from "sockjs-client";
 
 import { interviewApi } from "@/lib/interview-api";
 import { useAuthStore } from "@/lib/auth-store";
+import { useListen } from "@/lib/use-voice";
 import { toast } from "@/components/ui/Toast";
 import type { ApiError } from "@/types/auth";
 import type { InterviewDto } from "@/types/interview";
@@ -54,6 +55,14 @@ export default function InterviewRoomPage() {
   const localStreamRef = useRef<MediaStream | null>(null);
   const stompRef = useRef<Client | null>(null);
   const selfIdRef = useRef<string>(crypto.randomUUID());
+
+  // Capture the candidate's speech transcript for post-call AI evaluation.
+  // Only the candidate side records (the company already has their own voice).
+  const isCandidate = !!session && me?.id === session.candidateUserId;
+  const listen = useListen();
+  const listenRef = useRef(listen);
+  listenRef.current = listen;
+  const [evaluating, setEvaluating] = useState(false);
 
   // Load session metadata
   useEffect(() => {
@@ -161,6 +170,16 @@ export default function InterviewRoomPage() {
       try {
         await interviewApi.start(token);
       } catch {}
+
+      // Candidate-only: start live transcription for the AI evaluation that
+      // fires when they hang up. Browsers that don't support SpeechRecognition
+      // (Firefox today) just skip — call still works, evaluation will note
+      // an empty transcript.
+      if (isCandidate && listenRef.current.supported) {
+        try {
+          listenRef.current.start({ lang: "tr-TR", continuous: true, interim: true });
+        } catch {}
+      }
     };
 
     start();
@@ -199,13 +218,38 @@ export default function InterviewRoomPage() {
   };
 
   const hangUp = async () => {
-    try {
-      await interviewApi.end(token);
-    } catch {}
+    // Candidate: stop SR, push transcript to backend for Gemini evaluation.
+    let evaluated = false;
+    if (isCandidate) {
+      try {
+        listenRef.current.stop();
+        const transcript =
+          (listenRef.current.transcript + " " + listenRef.current.interimText).trim();
+        if (transcript) {
+          setEvaluating(true);
+          await interviewApi.evaluate(token, transcript);
+          evaluated = true;
+        } else {
+          await interviewApi.end(token);
+        }
+      } catch {
+        try { await interviewApi.end(token); } catch {}
+      } finally {
+        setEvaluating(false);
+      }
+    } else {
+      try {
+        await interviewApi.end(token);
+      } catch {}
+    }
     localStreamRef.current?.getTracks().forEach((t) => t.stop());
     peerRef.current?.close();
     stompRef.current?.deactivate();
-    toast.info("Mülakat sonlandırıldı");
+    if (evaluated) {
+      toast.ai("🎯 AI değerlendirmesi hazırlandı", "Şirket panelinden görebilir.");
+    } else {
+      toast.info("Mülakat sonlandırıldı");
+    }
     router.push(me?.role === "COMPANY" ? "/company/interviews" : "/dashboard/interviews");
   };
 
@@ -298,6 +342,21 @@ export default function InterviewRoomPage() {
         </div>
         <p className="mt-2 text-center font-mono text-[10.5px] uppercase tracking-wider text-white/40">
           Görüşme tarayıcıda — sunucu video iletmez
+          {isCandidate && listen.supported && (
+            <>
+              {" · "}
+              {listen.listening ? (
+                <span className="text-emerald-400">🎙 transkript kaydediliyor</span>
+              ) : (
+                <span className="text-white/40">transkript durdu</span>
+              )}
+              {" · "}
+              {listen.transcript.length} karakter
+            </>
+          )}
+          {evaluating && (
+            <> · <span className="text-ai-2 animate-pulse">AI değerlendiriyor...</span></>
+          )}
         </p>
       </footer>
     </main>

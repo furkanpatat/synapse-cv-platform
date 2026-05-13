@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { AxiosError } from "axios";
-import { Video, Calendar, Clock, ArrowRight, Download } from "lucide-react";
+import { Video, Calendar, Clock, ArrowRight, Download, Sparkles, ThumbsUp, ThumbsDown, Meh } from "lucide-react";
 
 import { interviewApi, downloadIcs } from "@/lib/interview-api";
 import { Button } from "@/components/ui/Button";
@@ -175,6 +175,16 @@ function Card({
           </span>
           <span>{viewer === "USER" ? "🏢 " : "👤 "}{otherName}</span>
         </div>
+        {interview.aiEvaluatedAt && (
+          <AiVerdict
+            score={interview.aiOverallScore ?? 0}
+            recommendation={interview.aiRecommendation}
+            summary={interview.aiSummary}
+            strengths={interview.aiStrengths}
+            gaps={interview.aiGaps}
+            viewer={viewer}
+          />
+        )}
       </div>
       <div className="flex items-center gap-2">
         {active && (
@@ -191,6 +201,72 @@ function Card({
           </Link>
         )}
       </div>
+    </div>
+  );
+}
+
+function AiVerdict({
+  score,
+  recommendation,
+  summary,
+  strengths,
+  gaps,
+  viewer,
+}: {
+  score: number;
+  recommendation: "HIRE" | "MAYBE" | "PASS" | null;
+  summary: string | null;
+  strengths: string[] | null;
+  gaps: string[] | null;
+  viewer: "USER" | "COMPANY";
+}) {
+  const reco = recommendation ?? "MAYBE";
+  const icon =
+    reco === "HIRE" ? (
+      <ThumbsUp size={11} className="text-emerald-400" />
+    ) : reco === "PASS" ? (
+      <ThumbsDown size={11} className="text-red-400" />
+    ) : (
+      <Meh size={11} className="text-amber-400" />
+    );
+  const label =
+    reco === "HIRE" ? "İŞE AL" : reco === "PASS" ? "GEÇİLEBİLİR" : "BELKİ";
+  return (
+    <div className="mt-3 rounded-md border border-ai-2/30 bg-ai-2/5 p-3">
+      <div className="mb-1 flex items-center gap-2 font-mono text-[10.5px] uppercase tracking-[0.16em] text-ai-2">
+        <Sparkles size={11} /> AI DEĞERLENDİRMESİ · {score}/100 · {icon} {label}
+      </div>
+      {summary && (
+        <p className="text-[12.5px] leading-snug text-text-2">{summary}</p>
+      )}
+      {viewer === "COMPANY" && (strengths?.length || gaps?.length) ? (
+        <div className="mt-2 grid gap-2 sm:grid-cols-2 text-[12px]">
+          {strengths && strengths.length > 0 && (
+            <div>
+              <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-emerald-400">
+                Güçlü
+              </div>
+              <ul className="mt-1 space-y-0.5 text-text-2">
+                {strengths.slice(0, 3).map((s, k) => (
+                  <li key={k}>+ {s}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {gaps && gaps.length > 0 && (
+            <div>
+              <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-amber-400">
+                Eksik
+              </div>
+              <ul className="mt-1 space-y-0.5 text-text-2">
+                {gaps.slice(0, 3).map((s, k) => (
+                  <li key={k}>! {s}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }
