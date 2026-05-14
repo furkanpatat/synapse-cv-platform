@@ -58,10 +58,67 @@ export interface SpeakOptions {
   voiceName?: string;   // exact SpeechSynthesisVoice.name match
 }
 
+/**
+ * Resolve the list of available voices, waiting up to `timeoutMs` for them
+ * to load — Chrome/Edge populate voices asynchronously and `getVoices()`
+ * returns [] on the first call. Without this guard the engine falls back
+ * to the system default (typically en-US) and reads Turkish text in English.
+ */
+function loadVoices(timeoutMs = 2000): Promise<SpeechSynthesisVoice[]> {
+  if (typeof window === "undefined") return Promise.resolve([]);
+  const synth = window.speechSynthesis;
+  const initial = synth.getVoices();
+  if (initial.length > 0) return Promise.resolve(initial);
+  return new Promise((resolve) => {
+    const done = (v: SpeechSynthesisVoice[]) => {
+      synth.onvoiceschanged = null;
+      resolve(v);
+    };
+    synth.onvoiceschanged = () => done(synth.getVoices());
+    setTimeout(() => done(synth.getVoices()), timeoutMs);
+  });
+}
+
+/** Pick the best Turkish voice; falls back to first voice if none. */
+function pickTurkishVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | null {
+  if (voices.length === 0) return null;
+  // Preference order — quality varies by OS. macOS "Yelda" is excellent;
+  // Google/Microsoft Turkish voices are also good. Premium > local > anything.
+  const preferenceOrder = [
+    (v: SpeechSynthesisVoice) =>
+      v.lang.toLowerCase().startsWith("tr") && /yelda|tolga/i.test(v.name),
+    (v: SpeechSynthesisVoice) =>
+      v.lang.toLowerCase().startsWith("tr") && /google/i.test(v.name),
+    (v: SpeechSynthesisVoice) =>
+      v.lang.toLowerCase().startsWith("tr") && /microsoft/i.test(v.name),
+    (v: SpeechSynthesisVoice) => v.lang.toLowerCase().startsWith("tr"),
+  ];
+  for (const pred of preferenceOrder) {
+    const match = voices.find(pred);
+    if (match) return match;
+  }
+  return null;
+}
+
 export function useSpeak() {
   const supported =
     typeof window !== "undefined" && "speechSynthesis" in window;
   const [speaking, setSpeaking] = useState(false);
+  const turkishVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
+
+  // Pre-warm the voice list on mount so the first speak() call doesn't
+  // race the async voice loading.
+  useEffect(() => {
+    if (!supported) return;
+    let cancelled = false;
+    loadVoices().then((voices) => {
+      if (cancelled) return;
+      turkishVoiceRef.current = pickTurkishVoice(voices);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [supported]);
 
   const speak = useCallback(
     (text: string, opts: SpeakOptions = {}) =>
@@ -72,32 +129,43 @@ export function useSpeak() {
         }
         // Cancel anything currently queued so we never overlap.
         window.speechSynthesis.cancel();
-        const u = new SpeechSynthesisUtterance(text);
-        u.lang = opts.lang ?? "tr-TR";
-        u.rate = opts.rate ?? 1;
-        u.pitch = opts.pitch ?? 1;
-        if (opts.voiceName) {
-          const v = window.speechSynthesis
-            .getVoices()
-            .find((vv) => vv.name === opts.voiceName);
-          if (v) u.voice = v;
-        } else {
-          // Prefer a native Turkish voice if available.
-          const tr = window.speechSynthesis
-            .getVoices()
-            .find((vv) => vv.lang.toLowerCase().startsWith("tr"));
-          if (tr) u.voice = tr;
+
+        const start = (voice: SpeechSynthesisVoice | null) => {
+          const u = new SpeechSynthesisUtterance(text);
+          u.lang = opts.lang ?? "tr-TR";
+          u.rate = opts.rate ?? 1;
+          u.pitch = opts.pitch ?? 1;
+          if (opts.voiceName) {
+            const v = window.speechSynthesis
+              .getVoices()
+              .find((vv) => vv.name === opts.voiceName);
+            if (v) u.voice = v;
+          } else if (voice) {
+            u.voice = voice;
+          }
+          u.onstart = () => setSpeaking(true);
+          u.onend = () => {
+            setSpeaking(false);
+            resolve();
+          };
+          u.onerror = () => {
+            setSpeaking(false);
+            resolve();
+          };
+          window.speechSynthesis.speak(u);
+        };
+
+        // If we already cached a Turkish voice on mount, fast path.
+        if (turkishVoiceRef.current) {
+          start(turkishVoiceRef.current);
+          return;
         }
-        u.onstart = () => setSpeaking(true);
-        u.onend = () => {
-          setSpeaking(false);
-          resolve();
-        };
-        u.onerror = () => {
-          setSpeaking(false);
-          resolve();
-        };
-        window.speechSynthesis.speak(u);
+        // Otherwise wait briefly for the voice list before speaking — this
+        // avoids the "Turkish text read with English voice" bug.
+        loadVoices(800).then((voices) => {
+          turkishVoiceRef.current = pickTurkishVoice(voices);
+          start(turkishVoiceRef.current);
+        });
       }),
     [supported]
   );

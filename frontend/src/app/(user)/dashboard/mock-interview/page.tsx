@@ -16,8 +16,14 @@ import {
   Trophy,
 } from "lucide-react";
 
-import { mockInterviewApi, type MockInterviewDto } from "@/lib/mock-interview-api";
+import {
+  mockInterviewApi,
+  MOCK_INTERVIEW_SECTORS,
+  type MockInterviewDto,
+  type MockInterviewSector,
+} from "@/lib/mock-interview-api";
 import { useSpeak, useListen } from "@/lib/use-voice";
+import { normaliseTechTerms } from "@/lib/transcript-cleanup";
 import { Button } from "@/components/ui/Button";
 import { ScoreRing } from "@/components/ui/ScoreRing";
 import type { ApiError } from "@/types/auth";
@@ -33,9 +39,38 @@ const LEVEL_OPTIONS: { value: "JUNIOR" | "MID" | "SENIOR" | "LEAD"; label: strin
 
 export default function MockInterviewPage() {
   // Wizard state
+  const [sector, setSector] = useState<MockInterviewSector>("TEKNOLOJI");
   const [role, setRole] = useState("Frontend Developer");
   const [level, setLevel] = useState<"JUNIOR" | "MID" | "SENIOR" | "LEAD">("MID");
   const [muted, setMuted] = useState(false);
+
+  // Smart role suggestion per sector — pre-fills the input when sector changes
+  // but only if the user hasn't typed a custom value yet.
+  const sectorRolePlaceholders: Record<MockInterviewSector, string> = {
+    TEKNOLOJI: "Frontend Developer",
+    SAGLIK: "Hemşire",
+    EGITIM: "İlkokul Öğretmeni",
+    FINANS: "Kredi Risk Analisti",
+    PAZARLAMA: "Dijital Pazarlama Uzmanı",
+    TASARIM: "UX Designer",
+    HUKUK: "Avukat",
+    INSAN_KAYNAKLARI: "İK Uzmanı",
+    OPERASYON: "Lojistik Koordinatörü",
+    URETIM: "Üretim Mühendisi",
+    MEDYA: "İçerik Editörü",
+    SATIS: "Satış Temsilcisi",
+    MUSTERI_HIZMETLERI: "Müşteri Hizmetleri Uzmanı",
+    DANISMANLIK: "Yönetim Danışmanı",
+  };
+  const switchSector = (s: MockInterviewSector) => {
+    setSector(s);
+    // Replace role if it matches the previous sector's default — otherwise
+    // keep the user's custom typing.
+    const prevDefault = sectorRolePlaceholders[sector];
+    if (role === prevDefault || role.trim() === "") {
+      setRole(sectorRolePlaceholders[s]);
+    }
+  };
 
   // Active session state
   const [session, setSession] = useState<MockInterviewDto | null>(null);
@@ -73,7 +108,7 @@ export default function MockInterviewPage() {
     setError(null);
     setBusy(true);
     try {
-      const iv = await mockInterviewApi.start(role.trim(), level);
+      const iv = await mockInterviewApi.start(role.trim(), level, sector);
       setSession(iv);
       // useEffect above triggers askQuestion(0)
     } catch (err) {
@@ -89,7 +124,8 @@ export default function MockInterviewPage() {
     listen.stop();
     setPhase("between");
     setBusy(true);
-    const transcript = (listen.transcript + " " + listen.interimText).trim();
+    const rawTranscript = (listen.transcript + " " + listen.interimText).trim();
+    const transcript = normaliseTechTerms(rawTranscript);
     try {
       const updated = await mockInterviewApi.submit(session.id, questionIdx, transcript);
       setSession(updated);
@@ -132,8 +168,8 @@ export default function MockInterviewPage() {
   };
 
   const liveCaption = useMemo(() => {
-    const f = listen.transcript;
-    const i = listen.interimText;
+    const f = normaliseTechTerms(listen.transcript);
+    const i = normaliseTechTerms(listen.interimText);
     if (!f && !i) return "";
     return (f ? f + " " : "") + (i ? "[ " + i + " ]" : "");
   }, [listen.transcript, listen.interimText]);
@@ -153,16 +189,42 @@ export default function MockInterviewPage() {
             dinleyip değerlendirecek. Mikrofon iznine ihtiyacımız var.
           </p>
 
+          <div className="mb-4">
+            <span className="block mb-1.5 font-mono text-[10.5px] uppercase tracking-[0.16em] text-text-muted">
+              SEKTÖR
+            </span>
+            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+              {MOCK_INTERVIEW_SECTORS.map((s) => (
+                <button
+                  type="button"
+                  key={s.value}
+                  onClick={() => switchSector(s.value)}
+                  className={`flex items-center gap-1.5 rounded-md border px-2.5 py-2 text-left text-[12.5px] transition ${
+                    sector === s.value
+                      ? "border-ai-2 bg-ai-2/10"
+                      : "border-border bg-surface-2 hover:border-text"
+                  }`}
+                >
+                  <span>{s.icon}</span>
+                  <span className="truncate">{s.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
           <label className="block mb-4">
             <span className="block mb-1.5 font-mono text-[10.5px] uppercase tracking-[0.16em] text-text-muted">
-              POZİSYON
+              POZİSYON / ROL
             </span>
             <input
               value={role}
               onChange={(e) => setRole(e.target.value)}
-              placeholder="ör. Frontend Developer, Data Engineer..."
+              placeholder={sectorRolePlaceholders[sector]}
               className="w-full rounded-md border border-border bg-surface-2 px-3 py-2 text-sm focus:border-text focus:outline-none"
             />
+            <span className="mt-1 block text-[11.5px] text-text-muted">
+              Hangi pozisyon için pratik yapmak istersin? İstediğin başlığı yazabilirsin.
+            </span>
           </label>
 
           <div className="mb-5">
@@ -365,6 +427,7 @@ export default function MockInterviewPage() {
             </div>
             <p className="mt-3 text-[12px] text-text-2">
               <span className="font-mono text-text">
+                {MOCK_INTERVIEW_SECTORS.find((s) => s.value === sector)?.icon}{" "}
                 {role.trim()} · {LEVEL_OPTIONS.find((l) => l.value === level)?.label}
               </span>
             </p>

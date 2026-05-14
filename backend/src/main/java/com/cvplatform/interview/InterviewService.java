@@ -245,6 +245,12 @@ public class InterviewService {
                 veriliyor (Web Speech API ile, ufak hatalar olabilir). Pozisyon
                 başlığını ve aranan yetkinlikleri de veriyorum.
 
+                ÖNEMLİ: Transkriptte teknik terimler veya yabancı kelimeler
+                Türkçe ses bilgisi ile yanlış yazılmış olabilir
+                (örn. "riak" = React, "kıbırnitis" = Kubernetes, "ce esen" = JSON,
+                "post gres" = PostgreSQL). Bunları zihninde normalize ederek
+                değerlendir, transkripsiyon hatalarını adaya yükleme.
+
                 Görevin:
                   - overallScore: 0-100 arası bir puan (cevapların kalitesi,
                     role uyum, ifade gücü, somut örnekler)

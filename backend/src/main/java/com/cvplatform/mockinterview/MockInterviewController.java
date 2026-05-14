@@ -24,7 +24,7 @@ public class MockInterviewController {
     public ResponseEntity<MockInterviewDto> start(@AuthenticationPrincipal User user,
                                                   @RequestBody StartBody body) {
         return ResponseEntity.ok(MockInterviewDto.from(
-                service.start(user, body.roleTitle(), body.level())));
+                service.start(user, body.roleTitle(), body.level(), body.sector())));
     }
 
     @PostMapping("/{id}/answers")
@@ -52,13 +52,14 @@ public class MockInterviewController {
         return ResponseEntity.ok(service.listMine(user).stream().map(MockInterviewDto::from).toList());
     }
 
-    public record StartBody(String roleTitle, String level) {}
+    public record StartBody(String roleTitle, String level, String sector) {}
     public record AnswerBody(int questionIndex, String transcript) {}
 
     public record MockInterviewDto(
             UUID id,
             String roleTitle,
             String level,
+            String sector,
             List<String> questions,
             List<String> answers,
             List<Map<String, Object>> perQuestionScores,
@@ -74,6 +75,7 @@ public class MockInterviewController {
                     iv.getId(),
                     iv.getRoleTitle(),
                     iv.getLevel(),
+                    iv.getSector(),
                     iv.getQuestions(),
                     iv.getAnswers(),
                     iv.getPerQuestionScores(),

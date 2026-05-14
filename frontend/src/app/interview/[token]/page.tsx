@@ -20,6 +20,7 @@ import SockJS from "sockjs-client";
 import { interviewApi } from "@/lib/interview-api";
 import { useAuthStore } from "@/lib/auth-store";
 import { useListen } from "@/lib/use-voice";
+import { normaliseTechTerms } from "@/lib/transcript-cleanup";
 import { toast } from "@/components/ui/Toast";
 import type { ApiError } from "@/types/auth";
 import type { InterviewDto } from "@/types/interview";
@@ -223,8 +224,9 @@ export default function InterviewRoomPage() {
     if (isCandidate) {
       try {
         listenRef.current.stop();
-        const transcript =
-          (listenRef.current.transcript + " " + listenRef.current.interimText).trim();
+        const transcript = normaliseTechTerms(
+          (listenRef.current.transcript + " " + listenRef.current.interimText).trim()
+        );
         if (transcript) {
           setEvaluating(true);
           await interviewApi.evaluate(token, transcript);

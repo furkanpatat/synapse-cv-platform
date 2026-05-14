@@ -41,6 +41,10 @@ public class MockInterview {
     @Column(nullable = false, length = 20)
     private String level;
 
+    @Column(nullable = false, length = 50)
+    @Builder.Default
+    private String sector = "TEKNOLOJI";
+
     @Column(nullable = false, length = 8)
     @Builder.Default
     private String language = "tr";

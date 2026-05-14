@@ -37,7 +37,7 @@ public class MockInterviewService {
     private final ObjectMapper mapper = new ObjectMapper();
 
     @Transactional
-    public MockInterview start(User user, String roleTitle, String level) {
+    public MockInterview start(User user, String roleTitle, String level, String sector) {
         if (roleTitle == null || roleTitle.isBlank()) {
             throw ApiException.badRequest("ROLE_REQUIRED", "Rol başlığı gerekli");
         }
@@ -45,13 +45,16 @@ public class MockInterviewService {
         if (!Set.of("JUNIOR", "MID", "SENIOR", "LEAD").contains(normalizedLevel)) {
             normalizedLevel = "MID";
         }
+        String normalizedSector = (sector == null || sector.isBlank()) ? "TEKNOLOJI"
+                : sector.trim().toUpperCase();
 
-        List<String> questions = generateQuestions(roleTitle, normalizedLevel);
+        List<String> questions = generateQuestions(roleTitle, normalizedLevel, normalizedSector);
 
         MockInterview iv = MockInterview.builder()
                 .user(user)
                 .roleTitle(roleTitle.trim())
                 .level(normalizedLevel)
+                .sector(normalizedSector)
                 .language("tr")
                 .questions(questions)
                 .answers(new ArrayList<>())
@@ -114,19 +117,32 @@ public class MockInterviewService {
         return iv;
     }
 
-    private List<String> generateQuestions(String role, String level) {
+    private List<String> generateQuestions(String role, String level, String sector) {
+        String sectorLabel = sectorLabel(sector);
         String systemPrompt = """
-                Sen deneyimli bir teknik mülakatçısın. Türkçe konuşuyorsun.
-                Verilen rol + seviye için aday değerlendirmek üzere 5 soru
-                hazırlıyorsun. Sorular:
+                Sen deneyimli bir mülakatçısın. Türkçe konuşuyorsun.
+                Verilen SEKTÖR + ROL + SEVİYE için aday değerlendirmek üzere
+                5 mülakat sorusu hazırlıyorsun.
+
+                ÖNEMLİ:
+                  - Sektör yazılım/teknoloji değilse soruları o sektörün
+                    gerçek günlük diline ve sorunlarına göre kur — örn.
+                    "Sağlık" için hasta bakımı/etik vakalar, "Eğitim" için
+                    sınıf yönetimi, "Pazarlama" için kampanya metriği,
+                    "Finans" için risk analizi, "Hukuk" için içtihat vs.
+                  - Sektör teknoloji ise role özgü teknik konulara gir.
+
+                Sorular:
                   - Davranışsal / STAR tetikleyici (en az 2 tane)
-                  - Pozisyona özgü teknik (en az 2 tane)
+                  - Role özgü uzmanlık sorusu (en az 2 tane)
                   - Açık uçlu olmalı, evet/hayır cevaplanmamalı
                   - Türkçe ve doğal sohbet tonunda
                 Çıktıyı SADECE şu JSON formatında ver, ek metin yok:
                 {"questions":["soru 1","soru 2","soru 3","soru 4","soru 5"]}
                 """;
-        String userPrompt = "Rol: " + role + "\nSeviye: " + level
+        String userPrompt = "Sektör: " + sectorLabel
+                + "\nRol: " + role
+                + "\nSeviye: " + level
                 + "\n5 soru üret. Cevap sadece JSON.";
         try {
             String raw = aiClient.generateText(systemPrompt, userPrompt, 0.7);
@@ -148,7 +164,16 @@ public class MockInterviewService {
     private Evaluation evaluate(MockInterview iv) {
         String systemPrompt = """
                 Sen mülakat değerlendirme uzmanısın. Türkçe konuşuyorsun.
-                Sana bir aday için soru-cevap çiftleri veriyorum. Her cevabı:
+                Sana bir aday için soru-cevap çiftleri veriyorum.
+
+                ÖNEMLİ: Cevaplar sesli kayıttan otomatik transkripsiyon ile
+                yazıya geçirilmiştir; teknik terimler veya yabancı kelimeler
+                Türkçe ses bilgisi ile yanlış yazılmış olabilir
+                (örn. "riak" = React, "kıbırnitis" = Kubernetes, "ce esen" = JSON).
+                Bunları zihninde normalize ederek değerlendir, transkripsiyon
+                hatasını adayın bilgisizliği olarak sayma.
+
+                Her cevabı:
                   - 0-100 arası bir score ile değerlendir
                   - 1-2 cümle feedback yaz
                   - strengths: cevabın güçlü yönleri (maks 3 madde)
@@ -167,7 +192,8 @@ public class MockInterviewService {
                 }
                 """;
         StringBuilder userPrompt = new StringBuilder();
-        userPrompt.append("Rol: ").append(iv.getRoleTitle())
+        userPrompt.append("Sektör: ").append(sectorLabel(iv.getSector()))
+                .append("\nRol: ").append(iv.getRoleTitle())
                 .append(" · Seviye: ").append(iv.getLevel()).append("\n\n");
         for (int i = 0; i < iv.getQuestions().size(); i++) {
             String q = iv.getQuestions().get(i);
@@ -219,6 +245,28 @@ public class MockInterviewService {
             return s.substring(firstBrace, lastBrace + 1);
         }
         return s;
+    }
+
+    /** User-facing label for the persisted sector code. */
+    private static String sectorLabel(String sector) {
+        if (sector == null) return "Genel";
+        return switch (sector.toUpperCase()) {
+            case "TEKNOLOJI"   -> "Teknoloji / Yazılım";
+            case "SAGLIK"      -> "Sağlık";
+            case "EGITIM"      -> "Eğitim";
+            case "FINANS"      -> "Finans / Bankacılık";
+            case "PAZARLAMA"   -> "Pazarlama / Reklam";
+            case "TASARIM"     -> "Tasarım / UX";
+            case "HUKUK"       -> "Hukuk";
+            case "INSAN_KAYNAKLARI" -> "İnsan Kaynakları";
+            case "OPERASYON"   -> "Operasyon / Lojistik";
+            case "URETIM"      -> "Üretim / Mühendislik";
+            case "MEDYA"       -> "Medya / İçerik";
+            case "SATIS"       -> "Satış";
+            case "MUSTERI_HIZMETLERI" -> "Müşteri Hizmetleri";
+            case "DANISMANLIK" -> "Danışmanlık";
+            default            -> sector;
+        };
     }
 
     private static List<String> defaultQuestions(String role, String level) {
