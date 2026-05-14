@@ -14,6 +14,7 @@ import {
   Activity,
   Network,
   Mic,
+  Github,
 } from "lucide-react";
 
 import { useRequireRole } from "@/lib/use-require-role";
@@ -40,6 +41,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         { href: "/dashboard/analysis", label: "AI Analiz", icon: Brain, badge: "AI" },
         { href: "/dashboard/skills", label: "Skill Grafı", icon: Network, badge: "AI" },
         { href: "/dashboard/mock-interview", label: "Mülakat Pratiği", icon: Mic, badge: "AI" },
+        { href: "/dashboard/github-analyze", label: "GitHub Analizi", icon: Github, badge: "AI" },
         { href: "/dashboard/jobs", label: "İlanlar", icon: Briefcase },
         { href: "/dashboard/saved", label: "Kayıtlılar", icon: Bookmark },
         { href: "/dashboard/applications", label: "Başvurularım", icon: Inbox },

@@ -9,6 +9,7 @@ from app.cv.routes import router as cv_router
 from app.analysis.routes import router as analysis_router
 from app.assistant.routes import router as assistant_router
 from app.embeddings.routes import router as embeddings_router
+from app.github_analyze.routes import router as github_analyze_router
 from app.worker.analysis_worker import start_worker_in_background
 
 app = FastAPI(
@@ -30,6 +31,7 @@ app.include_router(cv_router)
 app.include_router(analysis_router)
 app.include_router(assistant_router)
 app.include_router(embeddings_router)
+app.include_router(github_analyze_router)
 
 
 @app.on_event("startup")
