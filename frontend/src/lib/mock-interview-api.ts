@@ -47,6 +47,9 @@ export interface MockInterviewDto {
   roleTitle: string;
   level: MockInterviewLevel;
   sector: MockInterviewSector;
+  jobPostingId: string | null;
+  jobPostingTitle: string | null;
+  jobPostingCompany: string | null;
   questions: string[];
   answers: string[];
   perQuestionScores: PerQuestionScore[] | null;
@@ -59,9 +62,19 @@ export interface MockInterviewDto {
 }
 
 export const mockInterviewApi = {
-  start: (roleTitle: string, level: MockInterviewLevel, sector: MockInterviewSector) =>
+  start: (
+    roleTitle: string,
+    level: MockInterviewLevel,
+    sector: MockInterviewSector,
+    jobPostingId?: string | null
+  ) =>
     api
-      .post<MockInterviewDto>("/v1/mock-interviews", { roleTitle, level, sector })
+      .post<MockInterviewDto>("/v1/mock-interviews", {
+        roleTitle,
+        level,
+        sector,
+        jobPostingId: jobPostingId ?? null,
+      })
       .then((r) => r.data),
 
   submit: (id: string, questionIndex: number, transcript: string) =>

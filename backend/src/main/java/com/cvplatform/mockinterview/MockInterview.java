@@ -1,5 +1,6 @@
 package com.cvplatform.mockinterview;
 
+import com.cvplatform.jobs.JobPosting;
 import com.cvplatform.user.User;
 import io.hypersistence.utils.hibernate.type.json.JsonBinaryType;
 import jakarta.persistence.*;
@@ -44,6 +45,11 @@ public class MockInterview {
     @Column(nullable = false, length = 50)
     @Builder.Default
     private String sector = "TEKNOLOJI";
+
+    /** Optional link — when set, the AI tailors questions to this posting. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "job_posting_id")
+    private JobPosting jobPosting;
 
     @Column(nullable = false, length = 8)
     @Builder.Default

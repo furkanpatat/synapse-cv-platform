@@ -14,6 +14,9 @@ import {
   Check,
   Star,
   Trophy,
+  Briefcase,
+  Target,
+  Search,
 } from "lucide-react";
 
 import {
@@ -22,6 +25,8 @@ import {
   type MockInterviewDto,
   type MockInterviewSector,
 } from "@/lib/mock-interview-api";
+import { userJobsApi } from "@/lib/jobs-user-api";
+import type { JobResponse } from "@/types/jobs";
 import { useSpeak, useListen } from "@/lib/use-voice";
 import { normaliseTechTerms } from "@/lib/transcript-cleanup";
 import { Button } from "@/components/ui/Button";
@@ -39,10 +44,41 @@ const LEVEL_OPTIONS: { value: "JUNIOR" | "MID" | "SENIOR" | "LEAD"; label: strin
 
 export default function MockInterviewPage() {
   // Wizard state
+  const [mode, setMode] = useState<"general" | "job">("general");
   const [sector, setSector] = useState<MockInterviewSector>("TEKNOLOJI");
   const [role, setRole] = useState("Frontend Developer");
   const [level, setLevel] = useState<"JUNIOR" | "MID" | "SENIOR" | "LEAD">("MID");
   const [muted, setMuted] = useState(false);
+
+  // Job-specific prep state
+  const [pickedJob, setPickedJob] = useState<JobResponse | null>(null);
+  const [appliedJobs, setAppliedJobs] = useState<JobResponse[]>([]);
+  const [allActiveJobs, setAllActiveJobs] = useState<JobResponse[]>([]);
+  const [jobSearch, setJobSearch] = useState("");
+
+  // Pull the user's applied jobs + a sampling of active jobs when the user
+  // first switches to "job" mode. Done lazily to keep the wizard light.
+  useEffect(() => {
+    if (mode !== "job") return;
+    if (appliedJobs.length > 0 || allActiveJobs.length > 0) return;
+    (async () => {
+      try {
+        const apps = await userJobsApi.myApplications();
+        // Hydrate the application list with full job records.
+        const jobs = await Promise.all(
+          apps.slice(0, 20).map((a) =>
+            userJobsApi.get(a.jobId).catch(() => null)
+          )
+        );
+        setAppliedJobs(jobs.filter(Boolean) as JobResponse[]);
+      } catch {}
+      try {
+        const list = await userJobsApi.list(0, 50);
+        setAllActiveJobs(list.content);
+      } catch {}
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
 
   // Smart role suggestion per sector — pre-fills the input when sector changes
   // but only if the user hasn't typed a custom value yet.
@@ -108,7 +144,12 @@ export default function MockInterviewPage() {
     setError(null);
     setBusy(true);
     try {
-      const iv = await mockInterviewApi.start(role.trim(), level, sector);
+      const iv = await mockInterviewApi.start(
+        mode === "job" && pickedJob ? pickedJob.title : role.trim(),
+        level,
+        sector,
+        mode === "job" ? pickedJob?.id ?? null : null
+      );
       setSession(iv);
       // useEffect above triggers askQuestion(0)
     } catch (err) {
@@ -188,6 +229,64 @@ export default function MockInterviewPage() {
             AI senin için 5 soru üretecek, hem sesli soracak hem cevaplarını
             dinleyip değerlendirecek. Mikrofon iznine ihtiyacımız var.
           </p>
+
+          {/* Mode tabs */}
+          <div className="mb-5 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setMode("general")}
+              className={`flex items-start gap-2.5 rounded-md border px-3 py-3 text-left transition ${
+                mode === "general"
+                  ? "border-ai-2 bg-ai-2/10"
+                  : "border-border bg-surface-2 hover:border-text"
+              }`}
+            >
+              <Target size={16} className="mt-0.5 text-ai-2 shrink-0" />
+              <div>
+                <div className="text-[13px] font-medium">Genel pratik</div>
+                <div className="mt-0.5 text-[11.5px] text-text-2">
+                  Sektör + rol seç, geniş hazırlık yap
+                </div>
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode("job")}
+              className={`flex items-start gap-2.5 rounded-md border px-3 py-3 text-left transition ${
+                mode === "job"
+                  ? "border-ai-2 bg-ai-2/10"
+                  : "border-border bg-surface-2 hover:border-text"
+              }`}
+            >
+              <Briefcase size={16} className="mt-0.5 text-ai-2 shrink-0" />
+              <div>
+                <div className="text-[13px] font-medium">İlana göre hazırlık</div>
+                <div className="mt-0.5 text-[11.5px] text-text-2">
+                  Belirli bir ilan + şirket için özel sorular
+                </div>
+              </div>
+            </button>
+          </div>
+
+          {/* Job-specific mode: picker */}
+          {mode === "job" && (
+            <JobPicker
+              applied={appliedJobs}
+              all={allActiveJobs}
+              search={jobSearch}
+              setSearch={setJobSearch}
+              picked={pickedJob}
+              onPick={(j) => {
+                setPickedJob(j);
+                // Auto-derive level + role from the job; user can still
+                // tweak level afterwards.
+                if (j) {
+                  setRole(j.title);
+                  if (j.level) setLevel(j.level);
+                }
+              }}
+            />
+          )}
 
           <div className="mb-4">
             <span className="block mb-1.5 font-mono text-[10.5px] uppercase tracking-[0.16em] text-text-muted">
@@ -276,8 +375,19 @@ export default function MockInterviewPage() {
             </div>
           )}
 
-          <Button onClick={startSession} loading={busy} variant="ai" size="lg">
-            <Play size={15} /> Mülakatı başlat
+          <Button
+            onClick={startSession}
+            loading={busy}
+            variant="ai"
+            size="lg"
+            disabled={mode === "job" && !pickedJob}
+          >
+            <Play size={15} />{" "}
+            {mode === "job" && pickedJob
+              ? `${pickedJob.companyName} mülakatına başla`
+              : mode === "job"
+                ? "Önce ilan seç"
+                : "Mülakatı başlat"}
           </Button>
         </div>
       </>
@@ -477,6 +587,13 @@ function ReportView({
             <h2 className="mt-1 text-[24px] font-semibold tracking-[-0.025em]">
               {session.roleTitle} · {session.level}
             </h2>
+            {session.jobPostingCompany && (
+              <p className="mt-1 text-[13px] text-text-2">
+                <Briefcase size={12} className="inline" /> {session.jobPostingCompany}
+                {" · "}
+                {session.jobPostingTitle}
+              </p>
+            )}
             <div className="mt-2 flex flex-wrap gap-2">
               <span className="pill pill--ai">
                 <Star size={11} /> STAR uyumu: {session.starCompliance ?? 0}/100
@@ -569,5 +686,150 @@ function ReportView({
         );
       })}
     </div>
+  );
+}
+
+/** Job picker for job-specific prep mode. Shows applied jobs first, then a
+ *  searchable list of active jobs from the marketplace. */
+function JobPicker({
+  applied,
+  all,
+  search,
+  setSearch,
+  picked,
+  onPick,
+}: {
+  applied: JobResponse[];
+  all: JobResponse[];
+  search: string;
+  setSearch: (s: string) => void;
+  picked: JobResponse | null;
+  onPick: (j: JobResponse | null) => void;
+}) {
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return all.slice(0, 12);
+    return all
+      .filter((j) =>
+        `${j.title} ${j.companyName}`.toLowerCase().includes(q)
+      )
+      .slice(0, 12);
+  }, [all, search]);
+
+  if (picked) {
+    return (
+      <div className="mb-5 rounded-md border border-ai-2/30 bg-ai-2/5 p-4">
+        <div className="mb-2 flex items-center gap-2 font-mono text-[10.5px] uppercase tracking-[0.16em] text-ai-2">
+          <Briefcase size={11} /> SEÇİLEN İLAN
+        </div>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <h4 className="text-[14px] font-medium tracking-[-0.01em]">
+              {picked.title}
+            </h4>
+            <p className="mt-0.5 text-[12.5px] text-text-2">
+              🏢 {picked.companyName}
+              {picked.city && <> · 📍 {picked.city}</>}
+              {picked.level && <> · {picked.level}</>}
+            </p>
+            {picked.requiredSkills && picked.requiredSkills.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1">
+                {picked.requiredSkills.slice(0, 6).map((s) => (
+                  <span
+                    key={s}
+                    className="rounded-sm bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] text-text-2"
+                  >
+                    {s}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => onPick(null)}
+            className="text-[11px] font-mono uppercase tracking-[0.14em] text-text-muted hover:text-text"
+          >
+            Değiştir
+          </button>
+        </div>
+        <p className="mt-3 text-[11.5px] text-text-2 leading-snug">
+          <Sparkles size={11} className="inline text-ai-2" /> AI; bu ilana özel
+          5 soru hazırlayacak — şirket-kültür fit + ilan açıklamasındaki spesifik
+          teknolojiler + role uygun davranışsal sorular.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mb-5 space-y-3">
+      {applied.length > 0 && (
+        <div>
+          <div className="mb-1.5 font-mono text-[10.5px] uppercase tracking-[0.16em] text-text-muted">
+            BAŞVURDUĞUN İLANLAR
+          </div>
+          <div className="space-y-1.5">
+            {applied.map((j) => (
+              <JobPickRow key={j.id} job={j} onPick={() => onPick(j)} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div>
+        <div className="mb-1.5 flex items-center justify-between font-mono text-[10.5px] uppercase tracking-[0.16em] text-text-muted">
+          <span>TÜM AKTİF İLANLAR</span>
+        </div>
+        <div className="relative mb-2">
+          <Search
+            size={13}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted"
+          />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Pozisyon veya şirket ara..."
+            className="w-full rounded-md border border-border bg-surface-2 pl-9 pr-3 py-2 text-[13px] focus:border-text focus:outline-none"
+          />
+        </div>
+        {filtered.length === 0 ? (
+          <p className="text-[12.5px] text-text-muted italic">
+            Aramana uygun ilan yok.
+          </p>
+        ) : (
+          <div className="space-y-1.5 max-h-[260px] overflow-y-auto">
+            {filtered.map((j) => (
+              <JobPickRow key={j.id} job={j} onPick={() => onPick(j)} />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function JobPickRow({
+  job,
+  onPick,
+}: {
+  job: JobResponse;
+  onPick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onPick}
+      className="flex w-full items-center justify-between gap-3 rounded-md border border-border bg-surface-2 px-3 py-2 text-left transition hover:border-text"
+    >
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-[13px] font-medium">{job.title}</div>
+        <div className="truncate font-mono text-[11px] text-text-muted">
+          {job.companyName}
+          {job.level && <> · {job.level}</>}
+        </div>
+      </div>
+      <ArrowRight size={13} className="text-text-muted shrink-0" />
+    </button>
   );
 }

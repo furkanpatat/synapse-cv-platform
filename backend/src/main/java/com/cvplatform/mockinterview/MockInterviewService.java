@@ -2,6 +2,9 @@ package com.cvplatform.mockinterview;
 
 import com.cvplatform.ai.AiAssistantClient;
 import com.cvplatform.common.ApiException;
+import com.cvplatform.jobs.JobPosting;
+import com.cvplatform.jobs.JobPostingRepository;
+import com.cvplatform.jobs.JobStatus;
 import com.cvplatform.user.User;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -34,27 +37,50 @@ public class MockInterviewService {
 
     private final MockInterviewRepository repository;
     private final AiAssistantClient aiClient;
+    private final JobPostingRepository jobRepository;
     private final ObjectMapper mapper = new ObjectMapper();
 
     @Transactional
-    public MockInterview start(User user, String roleTitle, String level, String sector) {
-        if (roleTitle == null || roleTitle.isBlank()) {
+    public MockInterview start(User user, String roleTitle, String level, String sector,
+                                UUID jobPostingId) {
+        // If a job is linked, pull its title/level so the candidate sees the
+        // exact role they're preparing for — but still allow manual override.
+        JobPosting job = null;
+        if (jobPostingId != null) {
+            job = jobRepository.findById(jobPostingId).orElse(null);
+            if (job != null && job.getStatus() != JobStatus.ACTIVE) {
+                // Allow practising for closed jobs too, but warn-by-context;
+                // we don't hard-fail.
+            }
+        }
+
+        String effectiveRole = (roleTitle == null || roleTitle.isBlank()) && job != null
+                ? job.getTitle()
+                : roleTitle;
+        if (effectiveRole == null || effectiveRole.isBlank()) {
             throw ApiException.badRequest("ROLE_REQUIRED", "Rol başlığı gerekli");
         }
-        String normalizedLevel = level == null ? "MID" : level.toUpperCase();
+        String normalizedLevel;
+        if ((level == null || level.isBlank()) && job != null && job.getLevel() != null) {
+            normalizedLevel = job.getLevel().name();
+        } else {
+            normalizedLevel = level == null ? "MID" : level.toUpperCase();
+        }
         if (!Set.of("JUNIOR", "MID", "SENIOR", "LEAD").contains(normalizedLevel)) {
             normalizedLevel = "MID";
         }
         String normalizedSector = (sector == null || sector.isBlank()) ? "TEKNOLOJI"
                 : sector.trim().toUpperCase();
 
-        List<String> questions = generateQuestions(roleTitle, normalizedLevel, normalizedSector);
+        List<String> questions = generateQuestions(
+                effectiveRole, normalizedLevel, normalizedSector, job);
 
         MockInterview iv = MockInterview.builder()
                 .user(user)
-                .roleTitle(roleTitle.trim())
+                .roleTitle(effectiveRole.trim())
                 .level(normalizedLevel)
                 .sector(normalizedSector)
+                .jobPosting(job)
                 .language("tr")
                 .questions(questions)
                 .answers(new ArrayList<>())
@@ -117,9 +143,30 @@ public class MockInterviewService {
         return iv;
     }
 
-    private List<String> generateQuestions(String role, String level, String sector) {
+    private List<String> generateQuestions(String role, String level, String sector,
+                                            JobPosting job) {
         String sectorLabel = sectorLabel(sector);
-        String systemPrompt = """
+        boolean jobLinked = job != null;
+
+        String systemPrompt = jobLinked ? """
+                Sen deneyimli bir mülakatçısın. Türkçe konuşuyorsun.
+                Aday SPESİFİK BİR İŞ İLANINA hazırlanıyor — sana o ilanın
+                başlığını, açıklamasını, aranan yetkinliklerini ve şirket adını
+                veriyorum. Adayı O İLANA özel hazırla.
+
+                5 sorunun dağılımı:
+                  - 1 soru: "Neden bu şirket?" / "Şirket hakkında ne biliyorsun?"
+                    tipi şirket-kültür fit sorusu (şirket adından yola çık)
+                  - 2 soru: İlanda aranan yetkinliklerden seçilmiş teknik /
+                    uzmanlık deep-dive (description'da geçen spesifik
+                    teknolojilere veya konulara değin)
+                  - 2 soru: Davranışsal / STAR tetikleyici, ilanın gerektirdiği
+                    seviyeye ve rolün gerçek günlük zorluklarına uygun
+
+                Sorular Türkçe, doğal sohbet tonunda, açık uçlu olsun.
+                Çıktıyı SADECE şu JSON formatında ver, ek metin yok:
+                {"questions":["soru 1","soru 2","soru 3","soru 4","soru 5"]}
+                """ : """
                 Sen deneyimli bir mülakatçısın. Türkçe konuşuyorsun.
                 Verilen SEKTÖR + ROL + SEVİYE için aday değerlendirmek üzere
                 5 mülakat sorusu hazırlıyorsun.
@@ -140,10 +187,27 @@ public class MockInterviewService {
                 Çıktıyı SADECE şu JSON formatında ver, ek metin yok:
                 {"questions":["soru 1","soru 2","soru 3","soru 4","soru 5"]}
                 """;
-        String userPrompt = "Sektör: " + sectorLabel
-                + "\nRol: " + role
-                + "\nSeviye: " + level
-                + "\n5 soru üret. Cevap sadece JSON.";
+        StringBuilder up = new StringBuilder();
+        up.append("Sektör: ").append(sectorLabel)
+                .append("\nRol: ").append(role)
+                .append("\nSeviye: ").append(level);
+        if (jobLinked) {
+            up.append("\nŞirket: ").append(job.getCompany() == null ? "—" : job.getCompany().getName());
+            up.append("\nİlan başlığı: ").append(job.getTitle());
+            if (job.getCity() != null) up.append("\nLokasyon: ").append(job.getCity());
+            if (job.getRequiredSkills() != null && !job.getRequiredSkills().isEmpty()) {
+                up.append("\nAranan yetkinlikler: ")
+                        .append(String.join(", ", job.getRequiredSkills()));
+            }
+            if (job.getDescription() != null && !job.getDescription().isBlank()) {
+                String desc = job.getDescription().length() > 1500
+                        ? job.getDescription().substring(0, 1500)
+                        : job.getDescription();
+                up.append("\n\nİlan açıklaması:\n").append(desc);
+            }
+        }
+        up.append("\n\n5 soru üret. Cevap sadece JSON.");
+        String userPrompt = up.toString();
         try {
             String raw = aiClient.generateText(systemPrompt, userPrompt, 0.7);
             String json = extractJson(raw);
