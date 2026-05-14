@@ -20,6 +20,7 @@ import { companyApi } from "@/lib/company-api";
 import { messagingApi } from "@/lib/messaging-api";
 import { aiApi } from "@/lib/ai-api";
 import { ScheduleInterviewModal } from "@/components/interview/ScheduleInterviewModal";
+import { AiContentDetectionCard } from "@/components/analysis/AiContentDetectionCard";
 import { Button } from "@/components/ui/Button";
 import { ScoreRing } from "@/components/ui/ScoreRing";
 import { ApplicationStatusBadge } from "@/components/jobs/ApplicationStatusBadge";
@@ -534,6 +535,9 @@ export default function CandidateDetailPage() {
                 </p>
               </div>
             )}
+
+            {/* AI-content detection (company-only) */}
+            <AiContentDetectionCard applicationId={id} />
           </div>
         </aside>
       </div>

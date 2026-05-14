@@ -1,6 +1,7 @@
 package com.cvplatform.jobs;
 
 import com.cvplatform.user.User;
+import io.hypersistence.utils.hibernate.type.json.JsonBinaryType;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -8,9 +9,11 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.Type;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -48,6 +51,21 @@ public class Application {
 
     @Column(name = "cover_letter", columnDefinition = "TEXT")
     private String coverLetter;
+
+    // ----- AI-generated CV detection (filled at analysis time) -----
+
+    @Column(name = "cv_ai_probability")
+    private Integer cvAiProbability;
+
+    @Column(name = "cv_ai_verdict", length = 20)
+    private String cvAiVerdict;
+
+    @Type(JsonBinaryType.class)
+    @Column(name = "cv_ai_signals", columnDefinition = "jsonb")
+    private List<String> cvAiSignals;
+
+    @Column(name = "cv_ai_detected_at")
+    private Instant cvAiDetectedAt;
 
     @CreationTimestamp
     @Column(name = "applied_at", nullable = false, updatable = false)
