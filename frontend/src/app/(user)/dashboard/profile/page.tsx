@@ -11,6 +11,7 @@ import {
   MapPin,
   Sparkles,
   RefreshCcw,
+  Trash2,
 } from "lucide-react";
 
 import { authApi } from "@/lib/auth-api";
@@ -37,6 +38,64 @@ export default function ProfilePage() {
   const [generatingBio, setGeneratingBio] = useState(false);
   const [aiBioText, setAiBioText] = useState<string | null>(null);
   const [aiBioError, setAiBioError] = useState<string | null>(null);
+
+  // Avatar upload state
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
+
+  const onPickAvatar = () => avatarInputRef.current?.click();
+
+  const onAvatarFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // reset so the same file can be picked again
+    if (!file) return;
+    setAvatarError(null);
+
+    // Mirror the backend validation so the user gets fast feedback.
+    if (!file.type.startsWith("image/")) {
+      setAvatarError("Sadece resim dosyaları (jpg, png, webp, gif) seçilebilir.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setAvatarError("Dosya 5 MB'tan büyük olamaz.");
+      return;
+    }
+
+    setAvatarBusy(true);
+    try {
+      const updated = await userApi.uploadAvatar(file);
+      setMe(updated);
+      // Keep the global session in sync so the sidebar avatar also updates.
+      setUser({
+        id: updated.id,
+        email: updated.email,
+        firstName: updated.firstName ?? "",
+        lastName: updated.lastName ?? "",
+        role: updated.role,
+        emailVerified: updated.emailVerified,
+      });
+    } catch (err) {
+      const ex = err as AxiosError<ApiError>;
+      setAvatarError(ex.response?.data?.message ?? "Avatar yüklenemedi");
+    } finally {
+      setAvatarBusy(false);
+    }
+  };
+
+  const onRemoveAvatar = async () => {
+    setAvatarError(null);
+    setAvatarBusy(true);
+    try {
+      const updated = await userApi.removeAvatar();
+      setMe(updated);
+    } catch (err) {
+      const ex = err as AxiosError<ApiError>;
+      setAvatarError(ex.response?.data?.message ?? "Avatar kaldırılamadı");
+    } finally {
+      setAvatarBusy(false);
+    }
+  };
 
   const handleGenerateBio = async () => {
     setAiBioError(null);
@@ -128,24 +187,67 @@ export default function ProfilePage() {
         {/* avatar overlapping */}
         <div className="absolute left-7 top-[116px]">
           <div className="relative">
-            <span
-              className="grid h-32 w-32 place-items-center rounded-2xl text-[44px] font-semibold text-white shadow-[0_24px_48px_-16px_rgba(0,0,0,0.4)]"
-              style={{
-                background:
-                  "linear-gradient(135deg, #a855f7, #3b82f6, #22d3ee)",
-                outline: "4px solid var(--bg)",
-              }}
-            >
-              {initials}
-            </span>
+            {me.avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={me.avatarUrl}
+                alt={`${me.firstName ?? ""} ${me.lastName ?? ""}`.trim() || me.email}
+                className="h-32 w-32 rounded-2xl object-cover shadow-[0_24px_48px_-16px_rgba(0,0,0,0.4)]"
+                style={{ outline: "4px solid var(--bg)" }}
+              />
+            ) : (
+              <span
+                className="grid h-32 w-32 place-items-center rounded-2xl text-[44px] font-semibold text-white shadow-[0_24px_48px_-16px_rgba(0,0,0,0.4)]"
+                style={{
+                  background:
+                    "linear-gradient(135deg, #a855f7, #3b82f6, #22d3ee)",
+                  outline: "4px solid var(--bg)",
+                }}
+              >
+                {initials}
+              </span>
+            )}
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
+              onChange={onAvatarFileChange}
+              className="hidden"
+              aria-hidden
+            />
             <button
               type="button"
-              className="absolute bottom-1 right-1 grid h-8 w-8 place-items-center rounded-full border border-border bg-surface text-text hover:bg-surface-2"
-              aria-label="Avatar değiştir"
+              onClick={onPickAvatar}
+              disabled={avatarBusy}
+              className="absolute bottom-1 right-1 grid h-8 w-8 place-items-center rounded-full border border-border bg-surface text-text transition hover:bg-surface-2 disabled:opacity-60"
+              aria-label={me.avatarUrl ? "Fotoğrafı değiştir" : "Profil fotoğrafı yükle"}
+              title={me.avatarUrl ? "Fotoğrafı değiştir" : "Profil fotoğrafı yükle"}
             >
               <Camera size={14} />
             </button>
+            {me.avatarUrl && (
+              <button
+                type="button"
+                onClick={onRemoveAvatar}
+                disabled={avatarBusy}
+                className="absolute -bottom-1 -left-1 grid h-7 w-7 place-items-center rounded-full border border-border bg-surface text-text-2 transition hover:bg-surface-2 hover:text-red-300 disabled:opacity-60"
+                aria-label="Fotoğrafı kaldır"
+                title="Fotoğrafı kaldır"
+              >
+                <Trash2 size={12} />
+              </button>
+            )}
           </div>
+          {avatarBusy && (
+            <p className="mt-2 text-center font-mono text-[10.5px] uppercase tracking-[0.14em] text-text-muted">
+              Yükleniyor...
+            </p>
+          )}
+          {avatarError && (
+            <p className="mt-2 max-w-[160px] text-center text-[11.5px] text-red-300">
+              {avatarError}
+            </p>
+          )}
         </div>
 
         {/* name beside avatar */}
@@ -393,7 +495,7 @@ function extractGithub(url: string | null): string | null {
 function computeCompletion(me: MeResponse) {
   const items = [
     { label: "Temel bilgiler", done: !!me.firstName && !!me.lastName },
-    { label: "Profil fotoğrafı", done: false },
+    { label: "Profil fotoğrafı", done: !!me.avatarUrl },
     { label: "Hakkımda metni", done: !!me.bio && me.bio.length > 20 },
     { label: "İş deneyimi (CV)", done: !!me.title },
     { label: "Sosyal linker", done: !!me.linkedinUrl },

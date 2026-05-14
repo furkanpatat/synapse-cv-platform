@@ -17,5 +17,6 @@ public record MeResponse(
         String title,
         String bio,
         String githubUrl,
-        String linkedinUrl
+        String linkedinUrl,
+        String avatarUrl
 ) {}

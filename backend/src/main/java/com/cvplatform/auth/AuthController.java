@@ -67,7 +67,8 @@ public class AuthController {
                 user.getTitle(),
                 user.getBio(),
                 user.getGithubUrl(),
-                user.getLinkedinUrl()
+                user.getLinkedinUrl(),
+                user.getAvatarUrl()
         ));
     }
 }

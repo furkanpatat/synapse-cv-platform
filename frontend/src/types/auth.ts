@@ -30,6 +30,7 @@ export interface MeResponse {
   bio: string | null;
   githubUrl: string | null;
   linkedinUrl: string | null;
+  avatarUrl: string | null;
 }
 
 export interface RegisterPayload {
