@@ -70,6 +70,11 @@ public class SecurityConfig {
                         .requestMatchers("/v1/mock-interviews/**").authenticated()
                         .requestMatchers("/v1/ai-detection/**").authenticated()
                         .requestMatchers("/v1/github-analyze/**").authenticated()
+                        // Callback is hit by GitHub's browser redirect — no
+                        // JWT in the URL. We re-identify the user from the
+                        // state cookie inside the controller.
+                        .requestMatchers("/v1/github-connect/callback").permitAll()
+                        .requestMatchers("/v1/github-connect/**").authenticated()
                         .requestMatchers("/v1/ai/**").authenticated()
                         .requestMatchers("/v1/notifications/**").authenticated()
                         .anyRequest().authenticated()

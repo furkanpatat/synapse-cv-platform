@@ -60,6 +60,18 @@ public class GithubAnalyzeController {
         }
         body.put("username", username);
 
+        // If the user has connected their GitHub AND is analysing their own
+        // handle, pass their access token through so private repos surface.
+        // For anyone else's handle we use ai-service's system token (public
+        // only) — never leak the user's token to inspect third parties.
+        String connectedLogin = user.getGithubConnectLogin();
+        if (connectedLogin != null
+                && connectedLogin.equalsIgnoreCase(username)
+                && user.getGithubConnectToken() != null) {
+            body.put("accessToken", user.getGithubConnectToken());
+            body.put("includePrivate", true);
+        }
+
         try {
             Map<String, Object> result = restClient.post()
                     .uri("/v1/github-analyze/analyze")

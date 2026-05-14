@@ -31,7 +31,11 @@ from app.config import settings
 router = APIRouter(prefix="/v1/github-analyze", tags=["github-analyze"])
 
 
-def _client() -> Github:
+def _client(access_token: str | None = None) -> Github:
+    """Per-call client. Caller's token (private-repo access) wins over the
+    system token; system token wins over anonymous."""
+    if access_token:
+        return Github(auth=Auth.Token(access_token), per_page=100)
     if settings.github_token:
         return Github(auth=Auth.Token(settings.github_token), per_page=100)
     logger.warning("GITHUB_TOKEN not set — analyse will rely on the 60 req/h unauthenticated quota")
@@ -43,6 +47,11 @@ def _client() -> Github:
 class AnalyzeRequest(BaseModel):
     username: str = Field(..., min_length=1, max_length=80)
     maxRepos: int = 25
+    # Forwarded from the backend when the requesting user has connected
+    # their GitHub via the "private-repo" OAuth flow AND is querying their
+    # own handle. Anyone else's analysis falls back to the system token.
+    accessToken: str | None = None
+    includePrivate: bool = False
 
 
 class RepoSummary(BaseModel):
@@ -55,6 +64,7 @@ class RepoSummary(BaseModel):
     createdAt: str | None
     htmlUrl: str
     skills: list[str]  # languages + manifest frameworks for this repo
+    private: bool = False
 
 
 class SkillStat(BaseModel):
@@ -79,6 +89,9 @@ class AnalyzeResponse(BaseModel):
     repos: list[RepoSummary]
     skills: list[SkillStat]
     timeline: list[TimelinePoint]
+    # Set when an authenticated token surfaced private repos in the result —
+    # the UI uses this to show "+N private" badge.
+    privateReposIncluded: int = 0
 
 
 # ----- skill detection helpers -----
@@ -215,9 +228,15 @@ def _scan_manifests(repo) -> list[str]:
 
 @router.post("/analyze", response_model=AnalyzeResponse)
 def analyze(req: AnalyzeRequest) -> AnalyzeResponse:
-    gh = _client()
+    gh = _client(req.accessToken)
     try:
-        user = gh.get_user(req.username)
+        # When the user authed with their own token, "/user" returns *their*
+        # full profile and lets get_repos() enumerate private repos too.
+        # Otherwise fall back to the public profile lookup.
+        if req.accessToken and req.includePrivate:
+            user = gh.get_user()  # the authenticated user
+        else:
+            user = gh.get_user(req.username)
     except GithubException as ex:
         raise HTTPException(status_code=404, detail=f"GitHub kullanıcısı bulunamadı: {req.username}") from ex
 
@@ -236,11 +255,18 @@ def analyze(req: AnalyzeRequest) -> AnalyzeResponse:
         raise HTTPException(status_code=502, detail=f"GitHub API error: {ex}") from ex
 
     seen = 0
+    private_count = 0
     for repo in repo_iter:
         if seen >= req.maxRepos:
             break
-        if repo.fork or repo.private:
+        if repo.fork:
             continue
+        # Only include private repos when the caller authorised it via the
+        # connect flow. Public-only requests stay public-only.
+        if repo.private and not req.includePrivate:
+            continue
+        if repo.private:
+            private_count += 1
         seen += 1
 
         # Languages (bytes per language) — robust, doesn't need file fetch
@@ -283,6 +309,7 @@ def analyze(req: AnalyzeRequest) -> AnalyzeResponse:
             createdAt=created_at,
             htmlUrl=repo.html_url,
             skills=sorted(repo_skills_set),
+            private=repo.private,
         ))
 
     skills = [
@@ -312,4 +339,5 @@ def analyze(req: AnalyzeRequest) -> AnalyzeResponse:
         repos=repos,
         skills=skills,
         timeline=timeline,
+        privateReposIncluded=private_count,
     )

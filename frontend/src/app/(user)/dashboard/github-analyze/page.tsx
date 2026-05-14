@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { AxiosError } from "axios";
 import {
   Github,
@@ -12,6 +13,10 @@ import {
   TrendingUp,
   ExternalLink,
   Calendar,
+  Lock,
+  Plug,
+  Unplug,
+  Check,
 } from "lucide-react";
 
 import {
@@ -19,14 +24,72 @@ import {
   type GithubAnalyzeResponse,
   type RepoSummary,
 } from "@/lib/github-analyze-api";
+import { githubConnectApi, type GithubConnectStatus } from "@/lib/github-connect-api";
 import { Button } from "@/components/ui/Button";
+import { toast } from "@/components/ui/Toast";
 import type { ApiError } from "@/types/auth";
 
 export default function GithubAnalyzePage() {
+  return (
+    <Suspense fallback={null}>
+      <GithubAnalyzePageInner />
+    </Suspense>
+  );
+}
+
+function GithubAnalyzePageInner() {
   const [input, setInput] = useState("");
   const [data, setData] = useState<GithubAnalyzeResponse | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [connect, setConnect] = useState<GithubConnectStatus | null>(null);
+  const [connecting, setConnecting] = useState(false);
+  const searchParams = useSearchParams();
+
+  // Load connect status on mount + react to the ?connected=1 / ?connectError=...
+  // query params we get redirected to after the OAuth bounce.
+  useEffect(() => {
+    githubConnectApi.status().then(setConnect).catch(() => setConnect(null));
+    const connected = searchParams.get("connected");
+    const err = searchParams.get("connectError");
+    if (connected === "1") {
+      toast.ai(
+        "🔗 GitHub bağlandı",
+        "Artık kendi private repolarını da analize dahil edebilirsin."
+      );
+      // Auto-fill the search box with their connected login.
+      githubConnectApi.status().then((s) => {
+        setConnect(s);
+        if (s.login) setInput(s.login);
+      });
+    } else if (err) {
+      toast.error("GitHub bağlantısı başarısız", err);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const startConnect = async () => {
+    setConnecting(true);
+    try {
+      const url = await githubConnectApi.start();
+      window.location.href = url;
+    } catch (err) {
+      const e = err as AxiosError<ApiError>;
+      toast.error("Bağlantı başlatılamadı", e.response?.data?.message ?? "");
+      setConnecting(false);
+    }
+  };
+
+  const disconnect = async () => {
+    try {
+      await githubConnectApi.disconnect();
+      setConnect({ connected: false, login: "", scopes: "", connectedAt: null });
+      toast.info("GitHub bağlantısı kaldırıldı");
+    } catch (err) {
+      const e = err as AxiosError<ApiError>;
+      toast.error("Kaldırılamadı", e.response?.data?.message ?? "");
+    }
+  };
 
   const analyze = async () => {
     setBusy(true);
@@ -65,6 +128,69 @@ export default function GithubAnalyzePage() {
             manifest&apos;leri (package.json, requirements.txt, pom.xml…) ve
             commit zamanlamasından gerçek beceri profilini çıkartalım.
           </p>
+        </div>
+      </div>
+
+      {/* GitHub Connect — opt-in for private repos */}
+      <div
+        className={`mb-3 rounded-[var(--radius-lg)] border p-4 ${
+          connect?.connected
+            ? "border-emerald-500/30 bg-emerald-500/5"
+            : "border-ai-2/30 bg-ai-2/5"
+        }`}
+      >
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            <span
+              className={`grid h-9 w-9 place-items-center rounded-xl ${
+                connect?.connected ? "bg-emerald-500/15 text-emerald-400" : "ai-grad text-white"
+              }`}
+            >
+              {connect?.connected ? <Check size={16} /> : <Lock size={16} />}
+            </span>
+            <div className="min-w-0">
+              {connect?.connected ? (
+                <>
+                  <div className="text-[13.5px] font-medium">
+                    GitHub bağlı: <span className="font-mono">@{connect.login}</span>
+                  </div>
+                  <div className="mt-0.5 text-[11.5px] text-text-2">
+                    Kendi handle&apos;ını analiz ettiğinde private repolar da
+                    sonuca dahil edilir.
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="text-[13.5px] font-medium">
+                    Private repolarını da göstermek ister misin?
+                  </div>
+                  <div className="mt-0.5 text-[11.5px] text-text-2">
+                    GitHub&apos;ı bağlayınca kendi handle&apos;ını analiz
+                    ettiğinde private projelerin de skill profiline katılır.
+                    Diğer kullanıcılara erişmez.
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+          {connect?.connected ? (
+            <button
+              type="button"
+              onClick={disconnect}
+              className="btn btn--outline btn--sm"
+            >
+              <Unplug size={12} /> Bağlantıyı kaldır
+            </button>
+          ) : (
+            <Button
+              onClick={startConnect}
+              loading={connecting}
+              variant="ai"
+              size="sm"
+            >
+              <Plug size={13} /> GitHub&apos;ı bağla
+            </Button>
+          )}
         </div>
       </div>
 
@@ -137,6 +263,11 @@ function Result({ data }: { data: GithubAnalyzeResponse }) {
               <span className="pill">
                 <Calendar size={11} /> {data.totalPublicRepos} public repo
               </span>
+              {data.privateReposIncluded && data.privateReposIncluded > 0 ? (
+                <span className="pill" style={{ background: "rgba(99,102,241,0.18)" }}>
+                  <Lock size={11} /> +{data.privateReposIncluded} private
+                </span>
+              ) : null}
               {accountAge && (
                 <span className="pill">
                   <Clock size={11} /> {accountAge} GitHub&apos;da
@@ -210,6 +341,9 @@ function RepoCard({ repo }: { repo: RepoSummary }) {
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
+            {repo.private && (
+              <Lock size={11} className="text-ai-2" />
+            )}
             <h3 className="truncate text-[14px] font-medium">{repo.name}</h3>
             <ExternalLink size={11} className="text-text-muted" />
           </div>

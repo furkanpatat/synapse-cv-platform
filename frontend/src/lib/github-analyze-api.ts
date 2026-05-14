@@ -10,6 +10,7 @@ export interface RepoSummary {
   createdAt: string | null;
   htmlUrl: string;
   skills: string[];
+  private?: boolean;
 }
 
 export interface SkillStat {
@@ -34,6 +35,7 @@ export interface GithubAnalyzeResponse {
   repos: RepoSummary[];
   skills: SkillStat[];
   timeline: TimelinePoint[];
+  privateReposIncluded?: number;
 }
 
 export const githubAnalyzeApi = {

@@ -51,6 +51,19 @@ public class User {
     @Builder.Default
     private boolean totpEnabled = false;
 
+    /** GitHub access token granted via the "connect for private repos" flow. */
+    @Column(name = "github_connect_token", length = 255)
+    private String githubConnectToken;
+
+    @Column(name = "github_connect_login", length = 80)
+    private String githubConnectLogin;
+
+    @Column(name = "github_connect_scopes", length = 255)
+    private String githubConnectScopes;
+
+    @Column(name = "github_connect_at")
+    private Instant githubConnectAt;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
     private Role role;
