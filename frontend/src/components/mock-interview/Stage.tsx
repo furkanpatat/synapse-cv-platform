@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Sparkles } from "lucide-react";
 
 import { Avatar, type AvatarState } from "./Avatar";
@@ -15,11 +16,53 @@ interface Props {
 }
 
 /**
+ * Reads <html data-theme> and re-renders when ThemeToggle flips it. Mira's
+ * stroke colours need to contrast with the surface background, which is
+ * white-ish in light mode and near-black in dark — so we can't ship a
+ * single hardcoded ink colour.
+ */
+function useTheme(): "dark" | "light" {
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
+  useEffect(() => {
+    const root = document.documentElement;
+    const read = () =>
+      setTheme(root.getAttribute("data-theme") === "light" ? "light" : "dark");
+    read();
+    const obs = new MutationObserver(read);
+    obs.observe(root, { attributes: true, attributeFilter: ["data-theme"] });
+    return () => obs.disconnect();
+  }, []);
+  return theme;
+}
+
+/**
  * Left column of the active interview screen. Houses the Mira avatar plus
  * its ambient halo + waveform + role-card. Background is a soft top-radial
  * gradient over the surface token so the avatar feels lit from above.
  */
 export function Stage({ state, sector, role, level }: Props) {
+  const theme = useTheme();
+  const isDark = theme === "dark";
+
+  // Stroke / fill palette per theme. Dark = cream on near-black; light =
+  // near-black ink on white surface. Pupils stay dark in both so the eye
+  // whites can read as distinct shapes inside the lashes.
+  const avatarColours = isDark
+    ? {
+        ink: "#e8e3cf",
+        faceFill: "rgba(232, 227, 207, 0.04)",
+        hairFill: "#e8e3cf",
+        pupil: "#0a0a0a",
+        eyeWhite: "#e8e3cf",
+      }
+    : {
+        ink: "#1a1a1f",
+        faceFill: "rgba(20, 20, 30, 0.03)",
+        hairFill: "#1a1a1f",
+        pupil: "#0a0a0a",
+        eyeWhite: "#ffffff",
+      };
+
   return (
     <section
       className="relative flex flex-col overflow-hidden rounded-[14px] border border-border"
@@ -46,11 +89,11 @@ export function Stage({ state, sector, role, level }: Props) {
           state={state}
           size={280}
           accent="#a78bfa"
-          ink="#e8e3cf"
-          faceFill="rgba(232, 227, 207, 0.04)"
-          hairFill="#e8e3cf"
-          pupil="#0a0a0a"
-          eyeWhite="#e8e3cf"
+          ink={avatarColours.ink}
+          faceFill={avatarColours.faceFill}
+          hairFill={avatarColours.hairFill}
+          pupil={avatarColours.pupil}
+          eyeWhite={avatarColours.eyeWhite}
         />
       </div>
 
