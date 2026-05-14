@@ -1979,3 +1979,108 @@ body {
     hsl(calc(218 + var(--ai-hue)) 92% 55%),
     hsl(calc(190 + var(--ai-hue)) 85% 50%));
 }
+
+/* =====================================================
+   Mock Interview — Mira screen
+   Keyframes + class hooks for components in
+   src/components/mock-interview/*. The mi- prefix keeps
+   them out of the way of any other animation in the app.
+   ===================================================== */
+
+.mi-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.mi-status-dot--pulse {
+  box-shadow: 0 0 0 0 var(--mi-dot, currentColor);
+  animation: mi-dot-pulse 1.8s ease-out infinite;
+}
+.mi-status-dot--live {
+  animation: mi-dot-pulse 1.4s ease-out infinite;
+}
+.mi-status-dot--soft {
+  opacity: 0.7;
+}
+@keyframes mi-dot-pulse {
+  0%   { box-shadow: 0 0 0 0 var(--mi-dot, currentColor); }
+  70%  { box-shadow: 0 0 0 7px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+
+.mi-sk-bar {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.04),
+    rgba(255, 255, 255, 0.10),
+    rgba(255, 255, 255, 0.04)
+  );
+  background-size: 200% 100%;
+  animation: mi-sk-shimmer 1.4s linear infinite;
+}
+@keyframes mi-sk-shimmer {
+  from { background-position: 0% 0%; }
+  to   { background-position: -200% 0%; }
+}
+
+.mi-tw-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background: #a78bfa;
+  margin-left: 2px;
+  vertical-align: -3px;
+  animation: mi-tw-blink 0.9s steps(2) infinite;
+}
+@keyframes mi-tw-blink {
+  50% { opacity: 0.2; }
+}
+
+.mi-textarea:focus {
+  border-color: rgba(167, 139, 250, 0.42);
+}
+
+.mi-mic-big[data-mi-mic-on="true"] svg {
+  animation: mi-mic-pulse 1.2s ease-in-out infinite;
+}
+@keyframes mi-mic-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50%      { transform: scale(1.18); opacity: 0.75; }
+}
+
+.mi-pbar-shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.3),
+    transparent
+  );
+  animation: mi-pbar-slide 1.4s linear infinite;
+}
+.mi-pbar-shimmer {
+  background: transparent;
+}
+@keyframes mi-pbar-slide {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(100%); }
+}
+
+.mi-halo-drift {
+  animation: mi-halo 14s ease-in-out infinite;
+}
+.mi-halo-drift-2 {
+  animation: mi-halo 18s ease-in-out infinite -3s;
+}
+@keyframes mi-halo {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); opacity: 0.85; }
+  50%      { transform: translate3d(8px, -6px, 0) scale(1.08); opacity: 1; }
+}
+
+@keyframes mi-avatar-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}

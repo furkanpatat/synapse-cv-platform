@@ -4,16 +4,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AxiosError } from "axios";
 import {
   Mic,
-  MicOff,
-  Volume2,
-  VolumeX,
   Sparkles,
   ArrowRight,
   Play,
   RefreshCw,
   Check,
   Star,
-  Trophy,
   Briefcase,
   Target,
   Search,
@@ -31,7 +27,25 @@ import { useSpeak, useListen } from "@/lib/use-voice";
 import { normaliseTechTerms } from "@/lib/transcript-cleanup";
 import { Button } from "@/components/ui/Button";
 import { ScoreRing } from "@/components/ui/ScoreRing";
+// Mira (mock-interview) hi-fi components — used only on the active phase.
+import { WobbleFilter } from "@/components/mock-interview/WobbleFilter";
+import { Stage } from "@/components/mock-interview/Stage";
+import { QuestionCard } from "@/components/mock-interview/QuestionCard";
+import { TranscriptCard } from "@/components/mock-interview/TranscriptCard";
+import { ControlDock } from "@/components/mock-interview/ControlDock";
+import { ProgressStrip } from "@/components/mock-interview/ProgressStrip";
+import type { AvatarState } from "@/components/mock-interview/Avatar";
 import type { ApiError } from "@/types/auth";
+
+/** Maps the canonical Phase to the Avatar/StatusPill state union. */
+function avatarStateFor(phase: Phase): AvatarState {
+  if (phase === "speaking") return "speaking";
+  if (phase === "listening") return "listening";
+  if (phase === "between") return "between";
+  if (phase === "finalizing") return "finalizing";
+  // "setup" / "done" never reach the active screen, but TS needs an exit.
+  return "between";
+}
 
 type Phase = "setup" | "speaking" | "listening" | "between" | "finalizing" | "done";
 
@@ -115,6 +129,20 @@ export default function MockInterviewPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // Voice ↔ Text hybrid input (new). Defaults to "voice" so existing
+  // muscle memory still works; localStorage persists the user's pick.
+  const [inputMode, setInputMode] = useState<"voice" | "text">("voice");
+  const [textDraft, setTextDraft] = useState("");
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = window.localStorage.getItem("mi-input-mode");
+    if (stored === "voice" || stored === "text") setInputMode(stored);
+  }, []);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("mi-input-mode", inputMode);
+  }, [inputMode]);
+
   const speak = useSpeak();
   const listen = useListen();
   const speakRef = useRef(speak);
@@ -165,12 +193,18 @@ export default function MockInterviewPage() {
     listen.stop();
     setPhase("between");
     setBusy(true);
-    const rawTranscript = (listen.transcript + " " + listen.interimText).trim();
-    const transcript = normaliseTechTerms(rawTranscript);
+    // Voice → live transcript+interim, Text → textarea draft. Either way
+    // we normalise the same way so the AI judge sees canonical terms.
+    const raw =
+      inputMode === "text"
+        ? textDraft.trim()
+        : (listen.transcript + " " + listen.interimText).trim();
+    const transcript = normaliseTechTerms(raw);
     try {
       const updated = await mockInterviewApi.submit(session.id, questionIdx, transcript);
       setSession(updated);
       listen.reset();
+      setTextDraft("");
       const next = questionIdx + 1;
       if (next >= updated.questions.length) {
         // Finalize
@@ -206,14 +240,29 @@ export default function MockInterviewPage() {
     setPhase("setup");
     setQuestionIdx(0);
     setError(null);
+    setTextDraft("");
   };
 
-  const liveCaption = useMemo(() => {
-    const f = normaliseTechTerms(listen.transcript);
-    const i = normaliseTechTerms(listen.interimText);
-    if (!f && !i) return "";
-    return (f ? f + " " : "") + (i ? "[ " + i + " ]" : "");
-  }, [listen.transcript, listen.interimText]);
+  // Toggle mic from the ControlDock — pauses if listening, starts otherwise.
+  const toggleMic = () => {
+    if (listen.listening) {
+      listen.stop();
+    } else {
+      listen.start({ lang: "tr-TR", continuous: true, interim: true });
+    }
+  };
+
+  // Manual "soruyu tekrar dinle" — re-speak the current question.
+  const repeatQuestion = () => {
+    if (!session || muted) return;
+    void speak.speak(session.questions[questionIdx], { lang: "tr-TR", rate: 1.05 });
+  };
+
+  // Right-column "Next" enabled when we have content for the current mode.
+  const canSubmit =
+    inputMode === "text"
+      ? textDraft.trim().length > 0
+      : (listen.transcript.trim().length > 0 || listen.interimText.trim().length > 0);
 
   // =================== SETUP ===================
   if (phase === "setup") {
@@ -405,144 +454,85 @@ export default function MockInterviewPage() {
   }
 
   // =================== ACTIVE (speaking/listening/between/finalizing) ===================
+  const total = session?.questions.length ?? 0;
+  const avState = avatarStateFor(phase);
+  const sectorMeta = MOCK_INTERVIEW_SECTORS.find((s) => s.value === sector);
+  const sectorLabel = sectorMeta
+    ? `${sectorMeta.icon} ${sectorMeta.label.toUpperCase()}`
+    : "TEKNOLOJİ";
+  const levelLabel = LEVEL_OPTIONS.find((l) => l.value === level)?.label ?? level;
+
   return (
     <>
+      <WobbleFilter />
       <Hero />
-      <div className="grid gap-5 lg:grid-cols-[1.4fr_1fr]">
-        {/* LEFT: question + transcript */}
-        <div className="space-y-4">
-          <div className="rounded-[var(--radius-lg)] border border-border bg-surface p-7">
-            <div className="mb-2 flex items-center justify-between font-mono text-[11px] uppercase tracking-[0.16em] text-text-muted">
-              <span>SORU {questionIdx + 1} / {session?.questions.length}</span>
-              <span>
-                {phase === "speaking" && (<><Volume2 size={11} className="inline text-ai-2 animate-pulse" /> AI konuşuyor...</>)}
-                {phase === "listening" && (<><Mic size={11} className="inline text-emerald-400" /> Dinleniyor</>)}
-                {phase === "between" && "Kaydediliyor..."}
-                {phase === "finalizing" && "AI değerlendiriyor..."}
-              </span>
-            </div>
-            <p className="text-[18px] leading-snug font-medium tracking-[-0.015em]">
-              {currentQuestion || "Yükleniyor..."}
-            </p>
-            {muted && (
-              <p className="mt-2 text-[12px] text-text-muted">
-                Sessiz mod — soruyu sesli sormadım, hazır olduğunda cevapla.
-              </p>
-            )}
-          </div>
 
-          <div className="rounded-[var(--radius-lg)] border border-border bg-surface p-6 min-h-[180px]">
-            <div className="mb-2 font-mono text-[11px] uppercase tracking-[0.16em] text-text-muted">
-              CANLI TRANSKRİPT
-            </div>
-            <p className="text-[15px] leading-[1.6] whitespace-pre-wrap text-text">
-              {liveCaption || (
-                <span className="text-text-muted italic">
-                  Konuşmaya başla — sözlerin anlık olarak buraya yazılacak.
-                </span>
-              )}
-            </p>
-          </div>
+      <ProgressStrip idx={questionIdx} total={total} state={avState} />
+
+      <div className="grid gap-[18px] lg:grid-cols-[1.18fr_1fr]">
+        {/* LEFT: stage */}
+        <Stage
+          state={avState}
+          sector={sectorLabel}
+          role={
+            session?.jobPostingTitle
+              ? `${session.jobPostingTitle} · ${session.jobPostingCompany ?? ""}`.trim()
+              : role.trim()
+          }
+          level={levelLabel}
+        />
+
+        {/* RIGHT: question + transcript + controls */}
+        <div className="flex flex-col gap-3.5">
+          <QuestionCard
+            state={avState}
+            question={currentQuestion || ""}
+            idx={questionIdx}
+            total={total}
+            muted={muted}
+            onRepeat={repeatQuestion}
+          />
+
+          <TranscriptCard
+            state={avState}
+            inputMode={inputMode}
+            finalTranscript={listen.transcript}
+            interimText={listen.interimText}
+            draft={textDraft}
+            setDraft={setTextDraft}
+          />
 
           {listen.error && (
             <div className="rounded-md border border-red-500/30 bg-red-500/10 p-2.5 text-[12.5px] text-red-300">
               {listen.error}
             </div>
           )}
-        </div>
 
-        {/* RIGHT: controls + nav */}
-        <aside className="space-y-3">
-          <div className="rounded-[var(--radius-lg)] border border-ai-2/40 bg-surface p-5">
-            <div className="mb-3 font-mono text-[10.5px] uppercase tracking-[0.16em] text-text-muted">
-              KONTROL
-            </div>
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                type="button"
-                onClick={() => (listen.listening ? listen.stop() : listen.start({ lang: "tr-TR" }))}
-                className="flex flex-col items-center gap-1 rounded-md border border-border bg-surface-2 p-3 hover:border-text"
-                disabled={phase === "speaking" || phase === "finalizing"}
-              >
-                {listen.listening ? <Mic size={18} className="text-emerald-400" /> : <MicOff size={18} />}
-                <span className="text-[11px]">{listen.listening ? "Dinleniyor" : "Mikrofon"}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => (speak.speaking ? speak.cancel() : speak.speak(currentQuestion))}
-                className="flex flex-col items-center gap-1 rounded-md border border-border bg-surface-2 p-3 hover:border-text"
-                disabled={muted}
-              >
-                {speak.speaking ? <Volume2 size={18} className="text-ai-2 animate-pulse" /> : <VolumeX size={18} />}
-                <span className="text-[11px]">Tekrar dinle</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => listen.reset()}
-                className="flex flex-col items-center gap-1 rounded-md border border-border bg-surface-2 p-3 hover:border-text"
-                disabled={phase !== "listening"}
-              >
-                <RefreshCw size={18} />
-                <span className="text-[11px]">Temizle</span>
-              </button>
-            </div>
-          </div>
-
-          <Button
-            onClick={submitAndAdvance}
-            loading={busy || phase === "finalizing"}
-            variant="ai"
-            size="lg"
-            className="w-full"
-            disabled={
-              phase !== "listening" || (!listen.transcript && !listen.interimText)
-            }
-          >
-            {questionIdx + 1 === session?.questions.length ? (
-              <>
-                <Trophy size={15} /> Bitir & değerlendir
-              </>
-            ) : (
-              <>
-                Sonraki soru <ArrowRight size={15} />
-              </>
-            )}
-          </Button>
+          <ControlDock
+            state={avState}
+            inputMode={inputMode}
+            setInputMode={setInputMode}
+            muted={muted}
+            setMuted={setMuted}
+            onClear={() => {
+              if (inputMode === "text") setTextDraft("");
+              else listen.reset();
+            }}
+            onNext={submitAndAdvance}
+            onToggleMic={toggleMic}
+            isLast={questionIdx + 1 === total}
+            canSubmit={canSubmit && phase === "listening"}
+            busy={busy || phase === "finalizing"}
+          />
 
           <button
             type="button"
             onClick={restart}
-            className="btn btn--ghost btn--sm w-full"
+            className="self-end font-mono text-[11px] uppercase tracking-[0.14em] text-text-muted transition hover:text-text"
           >
-            Vazgeç & yeniden başla
+            ✕ Vazgeç & yeniden başla
           </button>
-
-          <div className="rounded-[var(--radius-lg)] border border-border bg-surface p-5">
-            <div className="mb-2 font-mono text-[10.5px] uppercase tracking-[0.16em] text-text-muted">
-              İLERLEME
-            </div>
-            <div className="flex gap-1">
-              {session?.questions.map((_, i) => (
-                <div
-                  key={i}
-                  className={`h-1.5 flex-1 rounded-full ${
-                    i < questionIdx
-                      ? "bg-emerald-400"
-                      : i === questionIdx
-                        ? "bg-ai-2"
-                        : "bg-border"
-                  }`}
-                />
-              ))}
-            </div>
-            <p className="mt-3 text-[12px] text-text-2">
-              <span className="font-mono text-text">
-                {MOCK_INTERVIEW_SECTORS.find((s) => s.value === sector)?.icon}{" "}
-                {role.trim()} · {LEVEL_OPTIONS.find((l) => l.value === level)?.label}
-              </span>
-            </p>
-          </div>
-        </aside>
+        </div>
       </div>
     </>
   );
