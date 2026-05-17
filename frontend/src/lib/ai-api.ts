@@ -50,4 +50,22 @@ export const aiApi = {
     api
       .post<{ text: string }>(`/v1/ai/job-description`, payload, longTimeout)
       .then((r) => r.data.text),
+
+  /**
+   * Polish a CV section (summary / experience description / project blurb
+   * / single bullet). `section` nudges tone; `context` is optional and
+   * not echoed in output (e.g. role title for an experience bullet).
+   */
+  rewriteCv: (
+    section: "summary" | "experience" | "project" | "bullet",
+    text: string,
+    context?: string
+  ) =>
+    api
+      .post<{ text: string }>(
+        `/v1/ai/cv-rewrite`,
+        { section, text, context: context ?? "" },
+        longTimeout
+      )
+      .then((r) => r.data.text),
 };

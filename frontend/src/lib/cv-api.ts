@@ -20,4 +20,14 @@ export const cvApi = {
     const { data } = await api.put<CvResponse>("/v1/cv/me", payload);
     return data;
   },
+
+  /**
+   * Builder-mode upsert. Backend creates a CvDocument if the user
+   * doesn't already have one, or overwrites the latest one with the
+   * supplied fields. Same shape as `update` but works on empty state.
+   */
+  saveBuilder: async (payload: Partial<CvResponse>): Promise<CvResponse> => {
+    const { data } = await api.post<CvResponse>("/v1/cv/builder", payload);
+    return data;
+  },
 };

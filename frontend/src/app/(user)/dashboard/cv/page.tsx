@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { AxiosError } from "axios";
 import {
   FileText,
@@ -108,7 +109,7 @@ export default function CvPage() {
             yapılandırılmış JSON&apos;a çevrilsin.
           </p>
         </div>
-        <div className="page-head__actions">
+        <div className="page-head__actions flex gap-2">
           <input
             ref={fileInputRef}
             type="file"
@@ -117,6 +118,9 @@ export default function CvPage() {
             className="hidden"
             id="cv-file-input"
           />
+          <Link href="/dashboard/cv/builder" className="btn btn--outline">
+            <FileText size={14} /> {cv ? "Düzenle / Builder" : "Sıfırdan oluştur"}
+          </Link>
           <Button
             onClick={() => fileInputRef.current?.click()}
             variant="ai"

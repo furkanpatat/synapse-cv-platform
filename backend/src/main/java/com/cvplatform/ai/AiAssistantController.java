@@ -69,6 +69,14 @@ public class AiAssistantController {
         return ResponseEntity.ok(Map.of("text", service.generateCvSuggestions(user.getId())));
     }
 
+    @PostMapping("/cv-rewrite")
+    @PreAuthorize("hasRole('USER')")
+    public ResponseEntity<Map<String, String>> cvRewrite(@RequestBody CvRewriteInput input) {
+        return ResponseEntity.ok(Map.of("text", service.rewriteCvSection(input)));
+    }
+
+    public record CvRewriteInput(String section, String text, String context) {}
+
     @PostMapping("/job-description")
     @PreAuthorize("hasRole('COMPANY')")
     public ResponseEntity<Map<String, String>> jobDescription(@RequestBody AiAssistantService.JobDescriptionInput input) {

@@ -494,6 +494,56 @@ public class AiAssistantService {
         return client.generateText(system, userPrompt, 0.7);
     }
 
+    /**
+     * Polish a single CV section — bullet, summary, project blurb, etc.
+     * Tighter context than full bio generation: just rewrite this text
+     * into something punchier without inventing facts. The {@code section}
+     * label nudges the tone (a deneyim bullet vs a kişisel özet need
+     * different voice).
+     */
+    public String rewriteCvSection(com.cvplatform.ai.AiAssistantController.CvRewriteInput input) {
+        String section = input == null || input.section() == null
+                ? "bullet" : input.section();
+        String text = input == null || input.text() == null
+                ? "" : input.text().trim();
+        String context = input == null || input.context() == null
+                ? "" : input.context().trim();
+        if (text.isBlank()) {
+            return "";
+        }
+
+        String sectionHint = switch (section) {
+            case "summary"     -> "Bu, CV'nin başındaki KİŞİSEL ÖZET. 3-4 cümle, hedef rolünü ve en güçlü yetkinliklerini vurgula. Birinci tekil şahıs kullanma — kısa, etkili.";
+            case "experience"  -> "Bu, bir İŞ DENEYİMİ açıklaması. Maddeler hâlinde, etki + sayı + somut teknoloji vurgusu (örn. \"X servisin response time'ını 800ms'den 120ms'ye düşürdüm — Java, Caffeine\"). Boş kelimelerden kaçın.";
+            case "project"     -> "Bu, bir PROJE açıklaması. 1-2 cümle, ne yaptığı + hangi teknolojiyi nasıl kullandığı.";
+            case "bullet"      -> "Bu, tek bir CV maddesi. Aksiyon fiili + somut sonuç + ölçüm formatına çevir. Tek satır.";
+            default            -> "Bu, bir CV bölümü. Profesyonel ve doğal tut.";
+        };
+
+        String system = """
+                Sen kıdemli bir kariyer koçu + ATS uzmanısın. Türkçe yazıyorsun.
+                Verilen ham metni daha vurucu, doğal ve ATS-dostu şekilde yeniden
+                yaz. Aşağıdaki kurallara harfiyen uy:
+
+                  - SADECE verilen bilgilerden çıkar — yeni fakt, yeni şirket adı,
+                    yeni rakam UYDURMA.
+                  - Klişe iş-Türkçesi ifadelerden kaçın ("stratejik bir bakış
+                    açısı", "sürekli öğrenme ve gelişim" YASAK).
+                  - Çıktıyı SADECE düzeltilmiş metin olarak ver. Açıklama, başlık,
+                    "İşte..." gibi giriş cümlesi, markdown YASAK.
+
+                BÖLÜM TÜRÜ: %s
+                """.formatted(sectionHint);
+
+        StringBuilder up = new StringBuilder();
+        up.append("HAM METİN:\n").append(text);
+        if (!context.isBlank()) {
+            up.append("\n\nEK BAĞLAM (kullanmana yardım eder, çıktıya alma):\n")
+                    .append(truncate(context, 600));
+        }
+        return client.generateText(system, up.toString(), 0.6).trim();
+    }
+
     public record JobDescriptionInput(
             String companyName,
             String title,

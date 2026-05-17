@@ -68,6 +68,38 @@ public class CvService {
 
     public CvDocument updateMyCv(UUID userId, CvUpdateRequest req) {
         CvDocument doc = getMyCv(userId);
+        applyManualFields(doc, req);
+        rebuildRawText(doc);
+        return cvRepository.save(doc);
+    }
+
+    /**
+     * Builder-mode upsert: lets the user create or replace their CV by
+     * filling out the in-app form (no file upload). If they already have
+     * a CV we update it in place; otherwise we mint a fresh CvDocument
+     * with PARSED status so the rest of the AI pipeline (analysis,
+     * match, skill graph, …) treats it like any uploaded CV.
+     *
+     * We always regenerate rawText from the structured fields — the AI
+     * verifier reads rawText, so keeping it in sync is essential.
+     */
+    public CvDocument createOrReplaceManual(UUID userId, CvUpdateRequest req) {
+        CvDocument doc = cvRepository
+                .findFirstByUserIdOrderByCreatedAtDesc(userId)
+                .orElseGet(() -> CvDocument.builder()
+                        .userId(userId)
+                        .originalFilename("manual-cv.txt")
+                        .status(CvDocument.CvStatus.PARSED)
+                        .build());
+        applyManualFields(doc, req);
+        // No source file for builder-mode CVs.
+        doc.setFileObjectName(null);
+        if (doc.getStatus() == null) doc.setStatus(CvDocument.CvStatus.PARSED);
+        rebuildRawText(doc);
+        return cvRepository.save(doc);
+    }
+
+    private void applyManualFields(CvDocument doc, CvUpdateRequest req) {
         if (req.personal() != null) doc.setPersonal(req.personal());
         if (req.summary() != null) doc.setSummary(req.summary());
         if (req.skills() != null) doc.setSkills(req.skills());
@@ -75,7 +107,73 @@ public class CvService {
         if (req.experience() != null) doc.setExperience(req.experience());
         if (req.projects() != null) doc.setProjects(req.projects());
         if (req.languages() != null) doc.setLanguages(req.languages());
-        return cvRepository.save(doc);
+    }
+
+    /**
+     * Concatenate the structured fields back into a plain-text CV so the
+     * downstream AI services (verifier, AI-CV detector, embedding match)
+     * keep working on builder-created CVs identically to uploaded ones.
+     */
+    private void rebuildRawText(CvDocument doc) {
+        StringBuilder sb = new StringBuilder();
+        if (doc.getPersonal() != null) {
+            CvDocument.Personal p = doc.getPersonal();
+            if (p.getName() != null) sb.append(p.getName()).append('\n');
+            if (p.getEmail() != null) sb.append(p.getEmail()).append(' ');
+            if (p.getPhone() != null) sb.append(p.getPhone()).append(' ');
+            if (p.getLocation() != null) sb.append(p.getLocation());
+            sb.append("\n\n");
+        }
+        if (doc.getSummary() != null && !doc.getSummary().isBlank()) {
+            sb.append("ÖZET\n").append(doc.getSummary()).append("\n\n");
+        }
+        if (doc.getSkills() != null && !doc.getSkills().isEmpty()) {
+            sb.append("YETKİNLİKLER\n").append(String.join(", ", doc.getSkills())).append("\n\n");
+        }
+        if (doc.getExperience() != null && !doc.getExperience().isEmpty()) {
+            sb.append("DENEYİM\n");
+            for (CvDocument.Experience x : doc.getExperience()) {
+                sb.append("• ").append(safe(x.getRole()))
+                        .append(" — ").append(safe(x.getCompany()))
+                        .append(" (").append(safe(x.getStartDate()))
+                        .append(" – ").append(safe(x.getEndDate())).append(")\n");
+                if (x.getDescription() != null && !x.getDescription().isBlank()) {
+                    sb.append(x.getDescription()).append('\n');
+                }
+            }
+            sb.append('\n');
+        }
+        if (doc.getEducation() != null && !doc.getEducation().isEmpty()) {
+            sb.append("EĞİTİM\n");
+            for (CvDocument.Education e : doc.getEducation()) {
+                sb.append("• ").append(safe(e.getDegree()))
+                        .append(' ').append(safe(e.getField()))
+                        .append(" — ").append(safe(e.getSchool()))
+                        .append(" (").append(safe(e.getStartYear()))
+                        .append(" – ").append(safe(e.getEndYear())).append(")\n");
+            }
+            sb.append('\n');
+        }
+        if (doc.getProjects() != null && !doc.getProjects().isEmpty()) {
+            sb.append("PROJELER\n");
+            for (CvDocument.Project pr : doc.getProjects()) {
+                sb.append("• ").append(safe(pr.getName())).append('\n');
+                if (pr.getDescription() != null) sb.append(pr.getDescription()).append('\n');
+                if (pr.getTechnologies() != null && !pr.getTechnologies().isEmpty()) {
+                    sb.append("Teknolojiler: ")
+                            .append(String.join(", ", pr.getTechnologies())).append('\n');
+                }
+            }
+            sb.append('\n');
+        }
+        if (doc.getLanguages() != null && !doc.getLanguages().isEmpty()) {
+            sb.append("DİLLER\n").append(String.join(", ", doc.getLanguages())).append('\n');
+        }
+        doc.setRawText(sb.toString().trim());
+    }
+
+    private static String safe(String s) {
+        return s == null ? "" : s;
     }
 
     public String getDownloadUrl(CvDocument doc) {

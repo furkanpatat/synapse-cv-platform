@@ -38,4 +38,16 @@ public class CvController {
         CvDocument doc = cvService.updateMyCv(user.getId(), req);
         return ResponseEntity.ok(CvResponse.from(doc, cvService.getDownloadUrl(doc)));
     }
+
+    /**
+     * Builder-mode upsert. Unlike PUT /me this does NOT require an
+     * existing CV — the in-app builder needs to be usable by candidates
+     * who don't have a CV to upload.
+     */
+    @PostMapping("/builder")
+    public ResponseEntity<CvResponse> saveBuilder(@AuthenticationPrincipal User user,
+                                                  @Valid @RequestBody CvUpdateRequest req) {
+        CvDocument doc = cvService.createOrReplaceManual(user.getId(), req);
+        return ResponseEntity.ok(CvResponse.from(doc, cvService.getDownloadUrl(doc)));
+    }
 }
