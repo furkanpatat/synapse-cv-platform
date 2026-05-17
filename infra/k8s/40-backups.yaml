@@ -1,0 +1,113 @@
+# Nightly backups for Postgres + Mongo.
+#
+# Both CronJobs do the same dance:
+#   1. dump to /tmp inside the job pod
+#   2. push to S3 (real S3, or MinIO with the same SDK) under a date-stamped
+#      key, with a 30-day Glacier lifecycle on the bucket side
+#   3. exit non-zero on ANY failure so K8s + AlertManager can scream
+#
+# Schedule is 02:30 UTC for Postgres, 03:00 UTC for Mongo so they don't
+# fight the same network bandwidth window. successfulJobsHistoryLimit=3
+# keeps the last 3 logs around for debugging without leaking secrets.
+#
+# Required secret: backup-secrets (see 02-secrets.example.yaml)
+#   AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_DEFAULT_REGION,
+#   BACKUP_BUCKET (e.g. s3://synapse-backups)
+
+# ── Postgres ──────────────────────────────────────────────────────
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: postgres-backup
+  namespace: cv-platform
+spec:
+  schedule: "30 2 * * *"           # 02:30 UTC daily
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 7
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      ttlSecondsAfterFinished: 86400
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: backup
+              # Postgres 16 client + awscli + bash in one ~80 MB image.
+              image: bitnami/postgresql:16
+              command: ["/bin/bash", "-c"]
+              args:
+                - |
+                  set -euo pipefail
+                  apt-get update -qq && apt-get install -qq -y awscli
+                  STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+                  FILE="/tmp/postgres-${STAMP}.sql.gz"
+                  echo "→ pg_dump $POSTGRES_DB@$POSTGRES_HOST"
+                  PGPASSWORD="$POSTGRES_PASSWORD" \
+                    pg_dump -h "$POSTGRES_HOST" -U "$POSTGRES_USER" \
+                            -d "$POSTGRES_DB" --no-owner --no-acl \
+                            --format=plain | gzip -9 > "$FILE"
+                  SIZE=$(stat -c '%s' "$FILE")
+                  echo "→ uploading $(numfmt --to=iec $SIZE) to $BACKUP_BUCKET"
+                  aws s3 cp "$FILE" "$BACKUP_BUCKET/postgres/postgres-${STAMP}.sql.gz" \
+                       --storage-class STANDARD_IA
+                  rm -f "$FILE"
+                  echo "✓ done"
+              envFrom:
+                - configMapRef: { name: backend-config }
+                - secretRef: { name: backend-secrets }
+                - secretRef: { name: backup-secrets }
+              resources:
+                requests: { cpu: 100m, memory: 256Mi }
+                limits:   { cpu: 500m, memory: 512Mi }
+
+---
+# ── Mongo ─────────────────────────────────────────────────────────
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: mongo-backup
+  namespace: cv-platform
+spec:
+  schedule: "0 3 * * *"            # 03:00 UTC daily
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 7
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      ttlSecondsAfterFinished: 86400
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: backup
+              image: mongo:7
+              command: ["/bin/bash", "-c"]
+              args:
+                - |
+                  set -euo pipefail
+                  apt-get update -qq && apt-get install -qq -y awscli
+                  STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+                  DIR="/tmp/mongo-${STAMP}"
+                  FILE="/tmp/mongo-${STAMP}.tar.gz"
+                  echo "→ mongodump $MONGO_DB@$MONGO_HOST"
+                  mongodump --host "$MONGO_HOST" --port "${MONGO_PORT:-27017}" \
+                            --username "$MONGO_USER" --password "$MONGO_PASSWORD" \
+                            --authenticationDatabase admin \
+                            --db "$MONGO_DB" --out "$DIR" --quiet
+                  tar -C /tmp -czf "$FILE" "mongo-${STAMP}"
+                  SIZE=$(stat -c '%s' "$FILE")
+                  echo "→ uploading $(numfmt --to=iec $SIZE) to $BACKUP_BUCKET"
+                  aws s3 cp "$FILE" "$BACKUP_BUCKET/mongo/mongo-${STAMP}.tar.gz" \
+                       --storage-class STANDARD_IA
+                  rm -rf "$DIR" "$FILE"
+                  echo "✓ done"
+              envFrom:
+                - configMapRef: { name: backend-config }
+                - secretRef: { name: ai-service-secrets }
+                - secretRef: { name: backup-secrets }
+              resources:
+                requests: { cpu: 100m, memory: 256Mi }
+                limits:   { cpu: 500m, memory: 512Mi }

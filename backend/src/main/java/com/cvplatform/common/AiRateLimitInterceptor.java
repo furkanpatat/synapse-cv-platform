@@ -26,7 +26,9 @@ public class AiRateLimitInterceptor implements HandlerInterceptor {
         Object principal = auth.getPrincipal();
         if (!(principal instanceof User user)) return true;
 
-        rateLimit.chargeAi(user); // throws ApiException 429 if exceeded
+        // Pass the request so the per-IP layer (X-Forwarded-For-aware)
+        // can run before the per-user check.
+        rateLimit.chargeAi(user, request); // throws ApiException 429 if exceeded
         return true;
     }
 }

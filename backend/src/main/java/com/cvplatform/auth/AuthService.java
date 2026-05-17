@@ -33,6 +33,7 @@ import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.HexFormat;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -148,10 +149,42 @@ public class AuthService {
         String hash = sha256(rawRefreshToken);
         RefreshToken stored = refreshTokenRepository.findByTokenHash(hash)
                 .orElseThrow(() -> ApiException.unauthorized("INVALID_REFRESH", "Refresh token not found"));
-        if (!stored.isActive()) {
-            throw ApiException.unauthorized("INVALID_REFRESH", "Refresh token expired or revoked");
+
+        // ── REPLAY DETECTION ─────────────────────────────────────────
+        // A revoked token coming back at us almost always means it was
+        // stolen — the legitimate user already rotated it once, and now
+        // someone else is trying to use the old copy. We can't tell who
+        // is who, so the safe move is to assume both halves are
+        // compromised: nuke ALL of that user's refresh tokens (forces a
+        // password re-login) and raise a noisy audit event the operator
+        // can grep for.
+        //
+        // An EXPIRED-but-not-revoked token is just normal time passing —
+        // no panic, just deny.
+        if (stored.isRevoked()) {
+            User user = stored.getUser();
+            refreshTokenRepository.revokeAllForUser(user.getId());
+            auditService.log(
+                    "auth.refresh.replay_detected",
+                    user,
+                    "user", user.getId().toString(),
+                    "Reuse of revoked refresh token — all sessions invalidated",
+                    Map.of(
+                            "tokenId", stored.getId().toString(),
+                            "originallyRevokedAt", String.valueOf(stored.getCreatedAt()),
+                            "action", "revoke_all_user_tokens"
+                    ));
+            log.warn("Refresh-token REPLAY detected for user {} (id={}). All sessions invalidated.",
+                    user.getEmail(), user.getId());
+            throw ApiException.unauthorized("REFRESH_REPLAY",
+                    "Bu refresh token daha önce kullanılıp döndürülmüş. " +
+                            "Güvenlik için tüm oturumların kapatıldı — lütfen yeniden giriş yap.");
         }
-        // Rotate: revoke old, issue new
+        if (!stored.isActive()) {
+            throw ApiException.unauthorized("INVALID_REFRESH", "Refresh token expired");
+        }
+
+        // Happy path — rotate.
         stored.setRevoked(true);
         refreshTokenRepository.save(stored);
         return issueTokens(stored.getUser());

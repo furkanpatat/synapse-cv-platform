@@ -1,0 +1,75 @@
+# Weekly audit-log archival.
+#
+# The audit_logs table grows unbounded — login events, plan changes,
+# every refresh-token replay etc. After ~90 days the row count starts
+# dragging the index. We export anything older than 90 days to S3 as
+# gzipped JSONL (immutable, queryable with Athena / DuckDB) and then
+# DELETE those rows from the live table.
+#
+# Schedule: 04:00 UTC every Sunday (after backups, before low-traffic
+# Monday morning).
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: audit-log-archive
+  namespace: cv-platform
+spec:
+  schedule: "0 4 * * 0"            # weekly, Sunday 04:00 UTC
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 4
+  failedJobsHistoryLimit: 7
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      ttlSecondsAfterFinished: 604800
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: archiver
+              image: bitnami/postgresql:16
+              command: ["/bin/bash", "-c"]
+              args:
+                - |
+                  set -euo pipefail
+                  apt-get update -qq && apt-get install -qq -y awscli jq
+                  STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+                  CUTOFF="$(date -u -d '90 days ago' '+%Y-%m-%dT%H:%M:%SZ')"
+                  FILE="/tmp/audit-${STAMP}.jsonl.gz"
+
+                  echo "→ Exporting audit_logs older than $CUTOFF"
+                  PGPASSWORD="$POSTGRES_PASSWORD" psql -h "$POSTGRES_HOST" \
+                      -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At \
+                      -c "SELECT row_to_json(t) FROM (
+                            SELECT * FROM audit_logs
+                             WHERE created_at < '${CUTOFF}'::timestamptz
+                             ORDER BY created_at
+                          ) t" | gzip -9 > "$FILE"
+
+                  LINES=$(zcat "$FILE" | wc -l)
+                  if [ "$LINES" -eq 0 ]; then
+                    echo "✓ nothing to archive — exiting clean"
+                    exit 0
+                  fi
+                  echo "→ $LINES rows ready, $(stat -c '%s' $FILE) bytes — uploading"
+
+                  aws s3 cp "$FILE" "$BACKUP_BUCKET/audit/audit-${STAMP}.jsonl.gz" \
+                       --storage-class STANDARD_IA
+
+                  # Only DELETE after S3 upload succeeded. Doing this in a
+                  # single transaction so a mid-delete failure doesn't
+                  # leave us in a half-archived state.
+                  echo "→ deleting archived rows"
+                  PGPASSWORD="$POSTGRES_PASSWORD" psql -h "$POSTGRES_HOST" \
+                      -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
+                      -c "DELETE FROM audit_logs
+                           WHERE created_at < '${CUTOFF}'::timestamptz"
+                  rm -f "$FILE"
+                  echo "✓ archived $LINES rows"
+              envFrom:
+                - configMapRef: { name: backend-config }
+                - secretRef: { name: backend-secrets }
+                - secretRef: { name: backup-secrets }
+              resources:
+                requests: { cpu: 100m, memory: 256Mi }
+                limits:   { cpu: 500m, memory: 512Mi }

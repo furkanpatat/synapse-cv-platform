@@ -3,6 +3,7 @@ package com.cvplatform.admin;
 import com.cvplatform.admin.dto.AdminCompanyDto;
 import com.cvplatform.admin.dto.AdminStats;
 import com.cvplatform.admin.dto.AdminUserDto;
+import com.cvplatform.common.RateLimitService;
 import com.cvplatform.user.SubscriptionType;
 import com.cvplatform.user.User;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +23,7 @@ import java.util.UUID;
 public class AdminController {
 
     private final AdminService service;
+    private final RateLimitService rateLimit;
 
     @GetMapping("/stats")
     public ResponseEntity<AdminStats> stats() {
@@ -60,5 +62,23 @@ public class AdminController {
                                                   @RequestBody Map<String, Boolean> body) {
         boolean verified = body.getOrDefault("verified", true);
         return ResponseEntity.ok(service.setVerified(admin, id, verified));
+    }
+
+    /**
+     * Read-only snapshot of today's global AI call count vs the daily
+     * Gemini budget. Lets the admin UI render a "X / Y today (Z%)"
+     * progress bar so they spot a runaway usage before the circuit
+     * breaker trips. -1 used = redis unavailable.
+     */
+    @GetMapping("/ai-budget")
+    public ResponseEntity<Map<String, Object>> aiBudget() {
+        long used = rateLimit.globalAiUsageToday();
+        int limit = rateLimit.globalDailyBudget();
+        return ResponseEntity.ok(Map.of(
+                "used", used,
+                "limit", limit,
+                "percent", limit <= 0 ? 0 : (used * 100.0 / limit),
+                "exhausted", used >= 0 && used >= limit
+        ));
     }
 }
