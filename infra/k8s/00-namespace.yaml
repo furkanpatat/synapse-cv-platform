@@ -1,0 +1,11 @@
+# Single namespace for the whole stack. Production deploys would
+# usually split data-tier (postgres / mongo / redis) into a separate
+# namespace with stricter NetworkPolicies; for the demo a flat ns is fine.
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cv-platform
+  labels:
+    app.kubernetes.io/name: cv-platform
+    app.kubernetes.io/part-of: synapse

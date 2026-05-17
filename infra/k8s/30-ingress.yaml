@@ -1,0 +1,56 @@
+# Nginx Ingress with TLS via cert-manager (Let's Encrypt). Replace the
+# hostnames with your real domains; the annotations assume cert-manager
+# + ingress-nginx are installed in the cluster.
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: backend
+  namespace: cv-platform
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    # WebSocket support for /api/ws (messaging, notifications,
+    # WebRTC signaling). nginx-ingress passes Upgrade headers by default
+    # for the right backend if the timeouts are bumped.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [api.synapse.example.com]
+      secretName: api-synapse-tls
+  rules:
+    - host: api.synapse.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port: { number: 8080 }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: frontend
+  namespace: cv-platform
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [synapse.example.com]
+      secretName: synapse-tls
+  rules:
+    - host: synapse.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port: { number: 3000 }
