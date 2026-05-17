@@ -13,9 +13,23 @@ global:
     project: cv-platform
     env: dev
 
+# Where alerts go once Prometheus decides to fire.
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+
+# Alert rule files — see alerts.yml for the 4 rules we currently page on.
+rule_files:
+  - /etc/prometheus/alerts.yml
+
 scrape_configs:
   - job_name: cvp-backend
-    metrics_path: /actuator/prometheus
+    # Spring 'server.servlet.context-path: /api' eklediği için actuator
+    # gerçekte /api/actuator/prometheus altında. Bunu unutmamak lazım —
+    # context path olmadan /actuator/prometheus 404 döner.
+    metrics_path: /api/actuator/prometheus
     static_configs:
       - targets: ["host.docker.internal:8080"]
         labels:

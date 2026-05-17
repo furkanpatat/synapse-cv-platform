@@ -1,0 +1,30 @@
+# Promtail — reads /var/log + docker container stdouts and forwards
+# them to Loki. The docker service_discovery section auto-tags every
+# log with the container name + image so Grafana queries can filter
+# by service.
+
+server:
+  http_listen_port: 9080
+  log_level: warn   # promtail's own logs — don't drown out app logs
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: docker
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 10s
+    relabel_configs:
+      # Surface the container name as a Loki label so we can do
+      # {container="cvp-backend"} queries.
+      - source_labels: ["__meta_docker_container_name"]
+        regex: "/(.*)"
+        target_label: "container"
+      - source_labels: ["__meta_docker_container_log_stream"]
+        target_label: "stream"
+      - source_labels: ["__meta_docker_container_label_com_docker_compose_service"]
+        target_label: "service"

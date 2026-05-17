@@ -125,3 +125,17 @@ logging:
   level:
     root: INFO
     com.cvplatform: DEBUG
+
+# Sentry error tracking. Empty DSN = SDK silently disabled, so this
+# section is safe to keep in dev / test environments.
+sentry:
+  dsn: ${SENTRY_DSN:}
+  environment: ${SENTRY_ENVIRONMENT:dev}
+  release: ${SENTRY_RELEASE:0.2.0}
+  # 10% transaction sampling; bump in prod with care (cost).
+  traces-sample-rate: ${SENTRY_TRACES_RATE:0.1}
+  # Only ship WARN+ to Sentry — INFO chat would crush the free quota.
+  logging:
+    minimum-event-level: warn
+    minimum-breadcrumb-level: info
+  send-default-pii: false

@@ -83,9 +83,56 @@ services:
       - "--storage.tsdb.retention.time=7d"
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
       - prometheus_data:/prometheus
     ports:
       - "9090:9090"
+    depends_on:
+      - alertmanager
+
+  # AlertManager — fans Prometheus alerts out to Slack (and PagerDuty in
+  # prod). Webhook URL is read from SLACK_WEBHOOK_URL env var.
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: cvp-alertmanager
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--storage.path=/alertmanager"
+    environment:
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-https://hooks.slack.com/services/REPLACE/ME/WITH-REAL-URL}
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    ports:
+      - "9093:9093"
+
+  # Loki — log aggregator. Backend pods ship logs via Promtail; Grafana
+  # has Loki added as a datasource so you can grep by service/level.
+  loki:
+    image: grafana/loki:latest
+    container_name: cvp-loki
+    restart: unless-stopped
+    command: -config.file=/etc/loki/local-config.yaml
+    ports:
+      - "3100:3100"
+    volumes:
+      - loki_data:/loki
+
+  # Promtail — tails docker container logs and ships them to Loki.
+  # Reads /var/lib/docker/containers (mounted RO) and tags by container
+  # name so we can filter "logs from cvp-backend" in Grafana.
+  promtail:
+    image: grafana/promtail:latest
+    container_name: cvp-promtail
+    restart: unless-stopped
+    command: -config.file=/etc/promtail/config.yml
+    volumes:
+      - ./promtail/config.yml:/etc/promtail/config.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - loki
 
   grafana:
     image: grafana/grafana:latest
@@ -97,6 +144,7 @@ services:
       GF_USERS_ALLOW_SIGN_UP: "false"
     depends_on:
       - prometheus
+      - loki
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - grafana_data:/var/lib/grafana
@@ -110,4 +158,6 @@ volumes:
   redis_data:
   minio_data:
   prometheus_data:
+  alertmanager_data:
+  loki_data:
   grafana_data:

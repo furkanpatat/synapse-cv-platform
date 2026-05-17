@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
+    "@sentry/nextjs": "^10.53.1",
     "@stomp/stompjs": "^7.0.0",
     "axios": "^1.7.7",
     "clsx": "^2.1.1",

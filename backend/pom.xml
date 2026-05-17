@@ -195,6 +195,20 @@
             <groupId>io.micrometer</groupId>
             <artifactId>micrometer-registry-prometheus</artifactId>
         </dependency>
+
+        <!-- Sentry error tracking. Activated only when SENTRY_DSN env var
+             is set — the SDK no-ops silently otherwise, so dev runs and
+             tests stay quiet. -->
+        <dependency>
+            <groupId>io.sentry</groupId>
+            <artifactId>sentry-spring-boot-starter-jakarta</artifactId>
+            <version>7.18.1</version>
+        </dependency>
+        <dependency>
+            <groupId>io.sentry</groupId>
+            <artifactId>sentry-logback</artifactId>
+            <version>7.18.1</version>
+        </dependency>
     </dependencies>
 
     <build>

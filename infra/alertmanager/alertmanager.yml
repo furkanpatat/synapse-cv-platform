@@ -1,0 +1,64 @@
+# AlertManager — routes Prometheus alerts to Slack.
+#
+# The webhook URL lives in the SLACK_WEBHOOK_URL env var (compose passes
+# it through). In a fresh repo the var is empty → AlertManager still
+# boots and routes the alert; the webhook just 404s and logs locally.
+# That's fine for dev. In prod, set the env var on the deployment.
+
+global:
+  resolve_timeout: 5m
+  # Override per-receiver below.
+  slack_api_url: "${SLACK_WEBHOOK_URL}"
+
+route:
+  receiver: slack-default
+  group_by: ["alertname", "service"]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    # severity=page → ping a louder channel. In a real org this would
+    # also fan out to PagerDuty / Opsgenie. For the demo we use a
+    # second Slack channel.
+    - matchers:
+        - severity = page
+      receiver: slack-pager
+      group_wait: 10s
+      repeat_interval: 1h
+
+receivers:
+  - name: slack-default
+    slack_configs:
+      - channel: "#synapse-alerts"
+        send_resolved: true
+        title: "[{{ .Status | toUpper }}] {{ .CommonLabels.alertname }}"
+        text: |
+          {{ range .Alerts -}}
+          *Severity:* {{ .Labels.severity }}
+          *Service:* {{ .Labels.service }}
+          *Summary:* {{ .Annotations.summary }}
+          *Details:* {{ .Annotations.description }}
+          {{ end }}
+
+  - name: slack-pager
+    slack_configs:
+      - channel: "#synapse-pager"
+        send_resolved: true
+        title: "🚨 [{{ .Status | toUpper }}] {{ .CommonLabels.alertname }}"
+        text: |
+          {{ range .Alerts -}}
+          *PAGER ALERT* — investigate immediately.
+          *Severity:* {{ .Labels.severity }}
+          *Service:* {{ .Labels.service }}
+          *Summary:* {{ .Annotations.summary }}
+          *Details:* {{ .Annotations.description }}
+          {{ end }}
+
+inhibit_rules:
+  # If the backend is down, suppress the noise from the latency / heap
+  # alerts that will inevitably fire as a consequence.
+  - source_matchers:
+      - alertname = BackendDown
+    target_matchers:
+      - service = backend
+    equal: [service]

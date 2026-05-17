@@ -221,13 +221,47 @@ ve eksik secret'lar uygulamayı **başlatmaz** (fail-fast). Bu kasıtlı.
 
 ---
 
-## 9. Sıradaki fazlar
+## 9. Observability (Phase 3 yapıldı — operatöre düşen kurulum)
 
-Phase 0 bitti — uygulama deploy edilebilir. Devamı için:
+### 9.1 Sentry (error tracking)
+1. [sentry.io](https://sentry.io) → 2 ayrı project oluştur (Java + Next.js)
+2. DSN'leri kopyala, secret olarak ekle:
+   ```yaml
+   SENTRY_DSN: https://xxx@xxx.ingest.sentry.io/yyy           # backend
+   NEXT_PUBLIC_SENTRY_DSN: https://xxx@xxx.ingest.sentry.io/zzz  # frontend (build arg)
+   SENTRY_ENVIRONMENT: production
+   SENTRY_RELEASE: <git-sha>
+   ```
+3. SDK boş DSN'de no-op olduğu için dev forklarda hiç ping atmaz.
 
-- **Phase 1 — Güvenilirlik:** DB backup CronJob, refresh token replay detection, rate limit IP+user çift katman, Gemini bütçe alarmı.
-- **Phase 2 — Test:** Testcontainers entegrasyon testleri, Playwright e2e, coverage %60+.
-- **Phase 3 — Observability:** Sentry, Loki/OpenObserve, AlertManager, Slack webhook, status page.
-- **Phase 4 — UX:** Mobile audit, a11y, i18n, KVKK.
+### 9.2 Slack alerts (AlertManager → Slack)
+1. Slack workspace → Apps → "Incoming Webhooks" → channel seç (`#synapse-alerts`,
+   bir de `#synapse-pager` ciddi olanlar için)
+2. Webhook URL'i secret'a ekle: `SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...`
+3. Compose / K8s alertmanager pod'una env olarak geçir
+4. Tetiklenen 4 alert rule (`infra/prometheus/alerts.yml`):
+   - **HighErrorRate** — 5xx > %5 (5 dk window)
+   - **HighP95Latency** — endpoint p95 > 2 s (5 dk)
+   - **JvmHeapAlmostFull** — heap > %90 committed (10 dk)
+   - **BackendDown** — actuator scrape kayboldu (2 dk) ← `severity: page`
+
+### 9.3 Loki + Promtail (log aggregation)
+- Compose'da otomatik kuruluyor: `docker compose up -d loki promtail`
+- Grafana'da Loki datasource hazır → **Explore → Loki → `{container="cvp-backend"}`**
+- Default retention ~7 gün; prod için Loki'yi S3 backend ile konfigüre et
+  (`storage_config.aws.s3` bölümü)
+
+### 9.4 UptimeRobot (external uptime + status page)
+1. [uptimerobot.com](https://uptimerobot.com) → Add Monitor (HTTP)
+2. URL: `https://api.synapse.example.com/api/actuator/health` (5 dk interval)
+3. Alert contacts → e-posta + Slack
+4. Public status page: Settings → Status Pages → `status.synapse.example.com`
+
+## 10. Sıradaki fazlar
+
+Phase 0-3 bitti — uygulama deploy edilebilir + gerçek-zamanlı izlenebilir.
+
+- **Phase 4 — UX:** Mobile audit, a11y (WCAG AA), i18n (EN/TR), KVKK metni
+- **Phase 5 — Scaling:** Cloudflare CDN, Redis cluster, Postgres read replica, multi-region
 
 Detay: README "Sonraki" bölümü.
