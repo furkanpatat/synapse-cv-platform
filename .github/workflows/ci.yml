@@ -36,8 +36,17 @@ jobs:
       # CvService. Integration tests with @SpringBootTest / Testcontainers
       # would need a Postgres container; left out of CI for now to keep
       # the pipeline fast.
-      - name: Unit tests
-        run: ./mvnw -B test
+      - name: Unit tests + Jacoco coverage
+        # `verify` runs test + the jacoco:check coverage floor (15%).
+        # A regression that pushes coverage below the floor fails the build.
+        run: ./mvnw -B verify
+
+      - name: Upload Jacoco coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-report
+          path: backend/target/site/jacoco/
+          retention-days: 14
 
       - name: Upload surefire reports on failure
         if: failure()
@@ -67,6 +76,11 @@ jobs:
 
       - name: Typecheck
         run: npx tsc --noEmit
+
+      - name: Unit tests (Vitest)
+        # Pure utility tests (redirect-by-role, transcript-cleanup).
+        # Fast — completes in well under a second.
+        run: npm test
 
       - name: Next.js build
         # Skip env-dependent steps; we only want to know the bundle compiles.

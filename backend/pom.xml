@@ -228,6 +228,63 @@
                     </annotationProcessorPaths>
                 </configuration>
             </plugin>
+
+            <!-- Jacoco — coverage reports + a minimum threshold so a
+                 regression that drops coverage below the floor breaks
+                 the build. Report appears at
+                 target/site/jacoco/index.html (HTML for humans) and
+                 target/site/jacoco/jacoco.xml (for Codecov / SonarQube). -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>0.8.12</version>
+                <executions>
+                    <execution>
+                        <id>prepare-agent</id>
+                        <goals><goal>prepare-agent</goal></goals>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>test</phase>
+                        <goals><goal>report</goal></goals>
+                    </execution>
+                    <execution>
+                        <id>check</id>
+                        <phase>verify</phase>
+                        <goals><goal>check</goal></goals>
+                        <configuration>
+                            <rules>
+                                <rule>
+                                    <element>BUNDLE</element>
+                                    <limits>
+                                        <limit>
+                                            <counter>INSTRUCTION</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <!-- Conservative floor — failing the
+                                                 build below this protects against a
+                                                 regression that drops coverage.
+                                                 Currently sitting around 19%; bump
+                                                 to 0.30 / 0.40 once more services
+                                                 get tests. -->
+                                            <minimum>0.15</minimum>
+                                        </limit>
+                                    </limits>
+                                </rule>
+                            </rules>
+                            <excludes>
+                                <!-- Skip DTOs / Lombok-generated / config classes
+                                     from coverage math — they're either
+                                     trivial or impossible to unit-test. -->
+                                <exclude>**/CvPlatformApplication.class</exclude>
+                                <exclude>**/dto/**</exclude>
+                                <exclude>**/*Properties.class</exclude>
+                                <exclude>**/*Config.class</exclude>
+                                <exclude>**/*Bootstrap.class</exclude>
+                            </excludes>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
     </build>
 </project>
