@@ -1,0 +1,26 @@
+# Prometheus scrape config for the local dev compose. The Spring backend
+# exposes /actuator/prometheus on host port 8080; we reach it from the
+# Prometheus container via host.docker.internal so the backend can keep
+# running on the host JVM (./mvnw spring-boot:run) while the stack is in
+# Docker. macOS + Docker Desktop resolves host.docker.internal out of the
+# box; Linux users add `--add-host=host.docker.internal:host-gateway` to
+# the Prometheus service.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    project: cv-platform
+    env: dev
+
+scrape_configs:
+  - job_name: cvp-backend
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["host.docker.internal:8080"]
+        labels:
+          service: backend
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]

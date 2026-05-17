@@ -100,9 +100,20 @@ management:
     web:
       exposure:
         include: health,info,metrics,prometheus
+      base-path: /actuator
   endpoint:
     health:
       show-details: when-authorized
+  metrics:
+    distribution:
+      # Surface request-latency percentiles per endpoint so Grafana can
+      # render p50/p95/p99 charts without aggregating server-side.
+      percentiles-histogram:
+        http.server.requests: true
+      slo:
+        http.server.requests: 50ms,100ms,300ms,1s
+    tags:
+      application: cv-platform-backend
 
 springdoc:
   swagger-ui:
