@@ -257,11 +257,44 @@ ve eksik secret'lar uygulamayı **başlatmaz** (fail-fast). Bu kasıtlı.
 3. Alert contacts → e-posta + Slack
 4. Public status page: Settings → Status Pages → `status.synapse.example.com`
 
-## 10. Sıradaki fazlar
+## 10. UX / Legal (Phase 4)
 
-Phase 0-3 bitti — uygulama deploy edilebilir + gerçek-zamanlı izlenebilir.
+### 10.1 SEO + sosyal önizleme
+- `src/app/layout.tsx` içinde `metadata` + `viewport` export'ları:
+  Open Graph + Twitter card + `metadataBase` set
+- OG görseli: `public/og-image.svg` (1200x630, brand gradient)
+- `NEXT_PUBLIC_SITE_URL=https://synapse.example.com` build arg'ı eklenmeli
+  ki LinkedIn/Slack tam URL ile crawl edebilsin
 
-- **Phase 4 — UX:** Mobile audit, a11y (WCAG AA), i18n (EN/TR), KVKK metni
-- **Phase 5 — Scaling:** Cloudflare CDN, Redis cluster, Postgres read replica, multi-region
+### 10.2 Yasal metinler
+- `/legal/kvkk` — 6698 sayılı KVKK aydınlatma metni (m.10)
+- `/legal/privacy` — gizlilik politikası
+- `/legal/terms` — kullanım şartları
+- `components/Footer.tsx` tüm sayfalara linkliyor
+- **Uyarı:** metinler tez sunumu için yazıldı; ticari deploy öncesi
+  hukuk danışmanı revizyonu gerekir.
+
+### 10.3 Çerez rızası
+- `components/CookieConsent.tsx` — localStorage-gated banner
+- Sadece zorunlu + opt-in analytics ayrımı (ePrivacy uyumlu)
+- Analiz SDK'larını koşullamak için: `hasAnalyticsConsent()` helper
+
+### 10.4 Erişilebilirlik (WCAG 2.1 AA)
+- "Ana içeriğe atla" skip-link (WCAG 2.4.1) — ilk Tab'da görünür
+- `viewport.maximumScale: 5` — kullanıcı zoom kapatılmadı (WCAG 1.4.4)
+- Cookie banner `role="dialog"` + `aria-live="polite"`
+- Eksik: tam Lighthouse a11y geçişi (bazı muted text'ler AA altında;
+  design system iter gerekecek)
+
+### 10.5 i18n — ertelendi
+next-i18next entegrasyonu Phase 4 kapsam dışı bırakıldı; uygulama
+TR-öncelikli. Tez sunumu için yeterli. EN paritesi Phase 6'ya.
+
+## 11. Sıradaki fazlar
+
+- **Phase 5 — Scaling:** Cloudflare CDN, Redis cluster, Postgres read replica,
+  multi-region, RabbitMQ quorum queues, autoscale tune
+- **Phase 6 — Growth:** LinkedIn OAuth (B planı), referral, Lighthouse CI gate,
+  full i18n (EN/TR)
 
 Detay: README "Sonraki" bölümü.
