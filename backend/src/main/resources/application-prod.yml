@@ -1,0 +1,121 @@
+# Production-overrides profile. Activate with SPRING_PROFILES_ACTIVE=prod.
+#
+# This profile DELIBERATELY has no defaults for secrets — if a required
+# env var is missing the application MUST fail to start, not silently
+# fall back to "change-me-admin". The :? syntax tells Spring to bail
+# if the placeholder is unresolved.
+#
+# Pair this with infra/k8s/02-secrets.yaml (or a SealedSecrets variant)
+# so every secret comes from the environment.
+
+spring:
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:?POSTGRES_HOST required in prod}:${POSTGRES_PORT:5432}/${POSTGRES_DB:?POSTGRES_DB required}
+    username: ${POSTGRES_USER:?POSTGRES_USER required}
+    password: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}
+
+  jpa:
+    hibernate:
+      ddl-auto: validate     # never auto-migrate in prod; Flyway does it
+    properties:
+      hibernate:
+        format_sql: false    # log noise in prod
+
+  data:
+    mongodb:
+      uri: mongodb://${MONGO_USER:?MONGO_USER required}:${MONGO_PASSWORD:?MONGO_PASSWORD required}@${MONGO_HOST:?MONGO_HOST required}:${MONGO_PORT:27017}/${MONGO_DB:?MONGO_DB required}?authSource=admin
+    redis:
+      host: ${REDIS_HOST:?REDIS_HOST required}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:?REDIS_PASSWORD required}
+
+  rabbitmq:
+    host: ${RABBITMQ_HOST:?RABBITMQ_HOST required}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:?RABBITMQ_USER required}
+    password: ${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD required}
+
+  mail:
+    # Real SMTP — SendGrid, AWS SES, Mailgun, Postmark, …
+    host: ${SMTP_HOST:?SMTP_HOST required in prod (e.g. smtp.sendgrid.net)}
+    port: ${SMTP_PORT:587}
+    username: ${SMTP_USERNAME:?SMTP_USERNAME required}
+    password: ${SMTP_PASSWORD:?SMTP_PASSWORD required}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+
+app:
+  admin:
+    # In prod we REFUSE to seed an admin from env defaults — the bootstrap
+    # MUST be done explicitly with a one-off API call or migration.
+    bootstrap-email: ${ADMIN_BOOTSTRAP_EMAIL:?ADMIN_BOOTSTRAP_EMAIL required}
+    bootstrap-password: ${ADMIN_BOOTSTRAP_PASSWORD:?ADMIN_BOOTSTRAP_PASSWORD required (min 16 chars)}
+
+  storage:
+    endpoint: ${MINIO_ENDPOINT:?MINIO_ENDPOINT required}
+    access-key: ${MINIO_ROOT_USER:?MINIO_ROOT_USER required}
+    secret-key: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD required}
+    bucket: ${MINIO_BUCKET:?MINIO_BUCKET required}
+
+  ai-service:
+    base-url: ${AI_SERVICE_BASE_URL:?AI_SERVICE_BASE_URL required}
+
+  jwt:
+    # Random 256-bit (32 byte) key. Generate with:
+    #   openssl rand -base64 48
+    # No default — if missing, the app fails to start. This is intentional
+    # so a misconfigured deploy can't accidentally ship the dev secret.
+    secret: ${JWT_SECRET:?JWT_SECRET required (min 32 bytes, base64)}
+    access-expiration-ms: ${JWT_ACCESS_EXPIRATION_MS:900000}
+    refresh-expiration-ms: ${JWT_REFRESH_EXPIRATION_MS:604800000}
+
+  cors:
+    # CSV list of allowed origins, e.g.
+    #   CORS_ALLOWED_ORIGINS=https://synapse.example.com,https://www.synapse.example.com
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:?CORS_ALLOWED_ORIGINS required (CSV of https origins)}
+
+  mail:
+    from: ${MAIL_FROM:?MAIL_FROM required (e.g. noreply@synapse.example.com)}
+
+  frontend:
+    base-url: ${FRONTEND_BASE_URL:?FRONTEND_BASE_URL required}
+
+  iyzico:
+    api-key: ${IYZICO_API_KEY:?IYZICO_API_KEY required in prod}
+    secret-key: ${IYZICO_SECRET_KEY:?IYZICO_SECRET_KEY required in prod}
+    base-url: ${IYZICO_BASE_URL:https://api.iyzipay.com}     # production endpoint
+    callback-url: ${IYZICO_CALLBACK_URL:?IYZICO_CALLBACK_URL required}
+    frontend-success-url: ${IYZICO_FRONTEND_SUCCESS:?IYZICO_FRONTEND_SUCCESS required}
+    frontend-failure-url: ${IYZICO_FRONTEND_FAILURE:?IYZICO_FRONTEND_FAILURE required}
+
+  oauth:
+    frontend-redirect: ${OAUTH_FRONTEND_REDIRECT:?OAUTH_FRONTEND_REDIRECT required}
+    google:
+      client-id: ${GOOGLE_CLIENT_ID:}            # empty disables the button
+      client-secret: ${GOOGLE_CLIENT_SECRET:}
+      redirect-uri: ${GOOGLE_REDIRECT_URI:}
+    github:
+      client-id: ${GITHUB_CLIENT_ID:}
+      client-secret: ${GITHUB_CLIENT_SECRET:}
+      redirect-uri: ${GITHUB_REDIRECT_URI:}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # In prod we ONLY expose what's needed for liveness + scraping.
+        # No /info, /env, /beans — too much info leak otherwise.
+        include: health,prometheus
+  endpoint:
+    health:
+      show-details: never
+
+logging:
+  level:
+    root: WARN
+    com.cvplatform: INFO
