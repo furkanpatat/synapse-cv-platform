@@ -46,6 +46,15 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/v1/ping").permitAll()
                         .requestMatchers("/v1/auth/**").permitAll()
+                        // Iyzico redirects the browser to /callback after the
+                        // hosted form closes; there's no JWT in that hop, so
+                        // it must be reachable unauthenticated. We reconcile
+                        // the user via the conversationId we stored at /checkout.
+                        .requestMatchers("/v1/billing/iyzico/callback").permitAll()
+                        // Actuator metrics endpoint — Prometheus scrapes it
+                        // unauthenticated in the dev compose. Lock down in prod.
+                        .requestMatchers("/actuator/health", "/actuator/info",
+                                "/actuator/prometheus").permitAll()
                         .requestMatchers("/ws/**").permitAll()
                         .requestMatchers("/v1/conversations/**").authenticated()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()

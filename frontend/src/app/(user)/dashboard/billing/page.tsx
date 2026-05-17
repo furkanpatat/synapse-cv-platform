@@ -84,20 +84,56 @@ export default function BillingPage() {
     setSuccess(null);
     setUpgrading(plan);
     try {
-      const next = await billingApi.upgrade(plan);
-      setData(next);
+      // Downgrade / cancel → no payment, just flip directly.
       if (plan === "FREE") {
+        const next = await billingApi.upgrade(plan);
+        setData(next);
         toast.success("Plan değiştirildi", "Artık FREE planındasın.");
-      } else {
-        toast.ai(`⭐ ${plan} aktif`, "Demo modu — gerçek ödeme yapılmadı.");
+        return;
       }
+      // Premium / Enterprise → Iyzico hosted checkout.
+      const init = await billingApi.checkout(plan);
+      const stub = init.stubMode === "true";
+      toast.ai(
+        stub ? "🧪 Demo ödeme akışı" : "💳 Ödeme sayfasına yönlendiriliyorsun",
+        stub
+          ? "Iyzico API key tanımlı değil — gerçek kart istenmeden demo amaçlı plan aktifleştirilecek."
+          : `Tutar: ${init.priceTry} TL · Iyzico'da kartını gir.`
+      );
+      // Iyzico's hosted page handles the rest; callback brings the user
+      // back to /dashboard/billing?upgraded=1 (or ?payment=failed).
+      window.location.href = init.paymentPageUrl;
     } catch (e) {
       toast.error("Plan güncellenemedi", "Lütfen tekrar dene veya admin'le iletişime geç.");
       setError("Plan güncellenemedi.");
-    } finally {
       setUpgrading(null);
     }
   };
+
+  // React to query params from the Iyzico callback redirect.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("upgraded") === "1") {
+      const plan = url.searchParams.get("plan") ?? "PREMIUM";
+      toast.ai(`⭐ ${plan} aktif`, "Ödemen alındı, planın yükseltildi.");
+      // Refresh billing state so the UI flips immediately.
+      billingApi.me().then(setData).catch(() => {});
+      // Clean the URL so a refresh doesn't re-toast.
+      url.searchParams.delete("upgraded");
+      url.searchParams.delete("plan");
+      window.history.replaceState({}, "", url.pathname + (url.search || ""));
+    } else if (url.searchParams.get("payment") === "failed") {
+      const reason = url.searchParams.get("reason") ?? "";
+      toast.error(
+        "Ödeme tamamlanamadı",
+        reason ? "Sebep: " + reason : "Lütfen tekrar dene."
+      );
+      url.searchParams.delete("payment");
+      url.searchParams.delete("reason");
+      window.history.replaceState({}, "", url.pathname + (url.search || ""));
+    }
+  }, []);
 
   if (loading) return <p className="text-sm text-text-muted">Yükleniyor...</p>;
   if (!data) return null;

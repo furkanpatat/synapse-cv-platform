@@ -75,6 +75,15 @@ app:
     from: noreply@cvplatform.local
   frontend:
     base-url: http://localhost:3000
+  iyzico:
+    api-key: ${IYZICO_API_KEY:}
+    secret-key: ${IYZICO_SECRET_KEY:}
+    base-url: ${IYZICO_BASE_URL:https://sandbox-api.iyzipay.com}
+    callback-url: ${IYZICO_CALLBACK_URL:http://localhost:8080/api/v1/billing/iyzico/callback}
+    frontend-success-url: ${IYZICO_FRONTEND_SUCCESS:http://localhost:3000/dashboard/billing?upgraded=1}
+    frontend-failure-url: ${IYZICO_FRONTEND_FAILURE:http://localhost:3000/dashboard/billing?payment=failed}
+    premium-price: 99.00
+    enterprise-price: 499.00
   oauth:
     frontend-redirect: http://localhost:3000/oauth/finish
     google:
