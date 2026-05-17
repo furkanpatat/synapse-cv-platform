@@ -1,0 +1,105 @@
+# PgBouncer — transaction-pooling proxy in front of Postgres.
+#
+# Why: HikariCP in each backend pod opens ~10 connections. With HPA
+# scaling backend to 10 pods that's 100 long-lived connections to
+# Postgres, which on a small instance (~max_connections=100) is the
+# entire budget. PgBouncer multiplexes ~1000 client connections onto
+# ~25 real Postgres connections — much friendlier under autoscale.
+#
+# Pool mode: TRANSACTION — safe for Spring/JDBC as long as the app
+# doesn't use session-level features (prepared statements at the
+# connection level, advisory locks across transactions, LISTEN/NOTIFY).
+# Hibernate's default prepared-statement-per-statement pattern is fine.
+# If you ever add LISTEN/NOTIFY, point that one consumer at Postgres
+# directly, not pgbouncer.
+#
+# How backend connects:
+#   spring.datasource.url=jdbc:postgresql://pgbouncer:6432/cvp
+#   spring.datasource.hikari.maximum-pool-size=5  ← keep small per pod
+# Hikari talks to pgbouncer (cheap), pgbouncer talks to Postgres (rare).
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pgbouncer-config
+  namespace: cv-platform
+data:
+  pgbouncer.ini: |
+    [databases]
+    cvp = host=postgres port=5432 dbname=cvp
+
+    [pgbouncer]
+    listen_addr = 0.0.0.0
+    listen_port = 6432
+    auth_type = md5
+    auth_file = /etc/pgbouncer/userlist.txt
+    pool_mode = transaction
+    max_client_conn = 1000
+    default_pool_size = 25
+    reserve_pool_size = 5
+    reserve_pool_timeout = 3
+    server_idle_timeout = 600
+    # ignore_startup_parameters is required for Hibernate/Java drivers
+    # that send extra_float_digits during handshake.
+    ignore_startup_parameters = extra_float_digits
+    # Sentry / metrics
+    stats_period = 60
+    admin_users = pgbouncer_admin
+---
+# IMPORTANT: the userlist is loaded with bcrypt-style md5 hashes derived
+# from `md5(password || username)`. Generate with:
+#   echo -n "<password>cvp_user" | md5sum  # then prefix with "md5"
+# Then base64-encode and put under data.userlist (or use a Secret + mount).
+apiVersion: v1
+kind: Secret
+metadata:
+  name: pgbouncer-users
+  namespace: cv-platform
+type: Opaque
+stringData:
+  userlist.txt: |
+    "cvp_user" "md5REPLACE_WITH_REAL_HASH"
+    "pgbouncer_admin" "md5REPLACE_WITH_ADMIN_HASH"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pgbouncer
+  namespace: cv-platform
+spec:
+  replicas: 2     # active-active; clients DNS-round-robin via Service
+  selector: { matchLabels: { app: pgbouncer } }
+  template:
+    metadata:
+      labels: { app: pgbouncer }
+    spec:
+      containers:
+        - name: pgbouncer
+          image: edoburu/pgbouncer:1.23.1
+          ports: [{ containerPort: 6432 }]
+          volumeMounts:
+            - { name: cfg,   mountPath: /etc/pgbouncer/pgbouncer.ini, subPath: pgbouncer.ini }
+            - { name: users, mountPath: /etc/pgbouncer/userlist.txt,  subPath: userlist.txt }
+          readinessProbe:
+            tcpSocket: { port: 6432 }
+            periodSeconds: 5
+          resources:
+            requests: { cpu: 50m,  memory: 32Mi }
+            limits:   { cpu: 200m, memory: 64Mi }
+      volumes:
+        - name: cfg
+          configMap: { name: pgbouncer-config }
+        - name: users
+          secret:    { secretName: pgbouncer-users }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pgbouncer
+  namespace: cv-platform
+spec:
+  selector: { app: pgbouncer }
+  ports:
+    - name: pg
+      port: 6432
+      targetPort: 6432

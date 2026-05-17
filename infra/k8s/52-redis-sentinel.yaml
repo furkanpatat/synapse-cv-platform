@@ -1,0 +1,90 @@
+# Redis with Sentinel HA — for production we can't depend on a single
+# Redis pod (rate limiter + refresh-token revocation list are critical
+# paths). This file declares a 3-pod StatefulSet running both
+# redis-server (one primary + two replicas) and sidecar Sentinels for
+# automatic failover.
+#
+# Spring Data Redis is Sentinel-aware out of the box; switch the app to
+# Sentinel discovery by setting:
+#   spring.data.redis.sentinel.master=mymaster
+#   spring.data.redis.sentinel.nodes=redis-0.redis:26379,redis-1.redis:26379,redis-2.redis:26379
+#
+# This is the "good enough for thesis" tier — for serious scale move to
+# Redis Cluster (sharded keyspace) or a managed offering (ElastiCache,
+# MemoryDB, Upstash). Cluster also unlocks horizontal write scaling,
+# which Sentinel can't do.
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redis-config
+  namespace: cv-platform
+data:
+  redis.conf: |
+    bind 0.0.0.0
+    protected-mode no
+    appendonly yes
+    save 900 1
+    save 300 10
+    maxmemory 256mb
+    maxmemory-policy allkeys-lru
+    # Replicas discover the primary via Sentinel; they boot read-only
+    # and re-elect if the primary dies.
+    replicaof no one
+  sentinel.conf: |
+    port 26379
+    dir /tmp
+    sentinel monitor mymaster redis-0.redis 6379 2
+    sentinel down-after-milliseconds mymaster 5000
+    sentinel failover-timeout mymaster 10000
+    sentinel parallel-syncs mymaster 1
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: cv-platform
+spec:
+  clusterIP: None     # headless — gives stable DNS per pod
+  selector: { app: redis }
+  ports:
+    - { name: redis,    port: 6379, targetPort: 6379 }
+    - { name: sentinel, port: 26379, targetPort: 26379 }
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redis
+  namespace: cv-platform
+spec:
+  serviceName: redis
+  replicas: 3
+  selector: { matchLabels: { app: redis } }
+  template:
+    metadata: { labels: { app: redis } }
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          command: ["redis-server", "/etc/redis/redis.conf"]
+          ports: [{ containerPort: 6379 }]
+          volumeMounts:
+            - { name: cfg,  mountPath: /etc/redis/redis.conf, subPath: redis.conf }
+            - { name: data, mountPath: /data }
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits:   { cpu: 500m, memory: 384Mi }
+        - name: sentinel
+          image: redis:7-alpine
+          command: ["redis-sentinel", "/etc/redis/sentinel.conf"]
+          ports: [{ containerPort: 26379 }]
+          volumeMounts:
+            - { name: cfg, mountPath: /etc/redis/sentinel.conf, subPath: sentinel.conf }
+      volumes:
+        - name: cfg
+          configMap: { name: redis-config }
+  volumeClaimTemplates:
+    - metadata: { name: data }
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources: { requests: { storage: 2Gi } }

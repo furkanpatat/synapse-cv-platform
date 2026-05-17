@@ -290,11 +290,69 @@ ve eksik secret'lar uygulamayı **başlatmaz** (fail-fast). Bu kasıtlı.
 next-i18next entegrasyonu Phase 4 kapsam dışı bırakıldı; uygulama
 TR-öncelikli. Tez sunumu için yeterli. EN paritesi Phase 6'ya.
 
-## 11. Sıradaki fazlar
+## 11. Ölçekleme (Phase 5)
 
-- **Phase 5 — Scaling:** Cloudflare CDN, Redis cluster, Postgres read replica,
-  multi-region, RabbitMQ quorum queues, autoscale tune
-- **Phase 6 — Growth:** LinkedIn OAuth (B planı), referral, Lighthouse CI gate,
-  full i18n (EN/TR)
+### 11.1 Yatay otomatik ölçekleme — HPA
+`infra/k8s/50-autoscale.yaml`:
+- **backend** 2→10 pod, CPU %65 target, 30 sn scale-up / 5 dk scale-down
+- **ai-service** 2→6 pod, CPU %70 + memory %80 (sentence-transformer
+  ağırdır; cap düşük tutuldu, scale-down cooldown 10 dk)
+- **frontend** 2→8 pod, CPU %70
+- Hepsi için `PodDisruptionBudget minAvailable: 1` → node drain'lerde
+  sıfır kesinti
+
+### 11.2 PgBouncer — DB bağlantı pooling
+`infra/k8s/51-pgbouncer.yaml`:
+- Transaction-mode pool: 1000 client conn → 25 Postgres conn
+- 2 replica, headless service
+- Backend bağlantısı: `jdbc:postgresql://pgbouncer:6432/cvp` ve Hikari
+  pool-size küçük tutulmalı (5/pod)
+- ⚠️ Kullanmadan önce `userlist.txt`'deki `md5HASH` placeholder'larını
+  gerçek hash ile değiştir (`md5(password+username)`)
+
+### 11.3 Redis Sentinel — HA cache
+`infra/k8s/52-redis-sentinel.yaml`:
+- 3-pod StatefulSet, her pod redis-server + sentinel sidecar
+- Otomatik failover (5 sn down-after, 10 sn failover-timeout)
+- Spring config: `spring.data.redis.sentinel.master=mymaster`,
+  `spring.data.redis.sentinel.nodes=redis-0.redis:26379,redis-1...,redis-2...`
+- Daha büyük ölçek için Cluster moduna (sharded) geç
+
+### 11.4 RabbitMQ quorum queues
+`RabbitConfig.java`'da `.quorum().lazy()` flag'leri:
+- Raft replikasyonu → broker restart'ta mesaj kaybı yok (klasik
+  mirrored queue 4.x'te deprecated)
+- Lazy mode → disk-öncelikli, OOM riskini azaltır
+- ⚠️ Mevcut classic queue varsa migration: önce drain + delete
+  (`rabbitmqctl delete_queue analysis.run`), sonra app restart
+
+### 11.5 Cloudflare / CDN cache headers
+`frontend/next.config.mjs`:
+- `/_next/static/*` → 1 yıl `immutable` (Next hashlenmiş dosya adı verir)
+- `/og-image.svg` → 1 gün + 1 hafta `stale-while-revalidate`
+- Güvenlik header'ları (HSTS dışında — onu ingress/Cloudflare'a bırak):
+  X-Content-Type-Options, Referrer-Policy, X-Frame-Options DENY,
+  Permissions-Policy (camera/mic self, geolocation off), `poweredByHeader: false`
+
+### 11.6 Postgres read replica
+PgBouncer önüne ikinci bir pool ekle (`pgbouncer-ro`) → Postgres streaming
+replica'ya yönlendir. Backend'de read-only servisler için ayrı bir
+DataSource bean tanımlanır (`@Transactional(readOnly = true)` route'lanır).
+Bu repoda manifest yok — yönetilen Postgres (RDS/CloudSQL/Azure DB) kullanan
+ekiplerin native replica özelliklerini tercih etmesi daha pratik.
+
+### 11.7 Yük testi — k6
+`infra/loadtest/cv-upload.js`:
+- 50 VU, 6 dk ramping mix: %70 browse, %20 CV analiz, %10 login
+- Threshold: p95 < 1.5s, p99 < 3s, hata oranı < %1
+- Çalıştır: `k6 run -e BASE=https://staging.synapse.example.com infra/loadtest/cv-upload.js`
+- ⚠️ Sadece staging'e bas. Aynı bölgede bir VM'den koş.
+
+## 12. Sıradaki fazlar
+
+- **Phase 6 — Growth:** LinkedIn OAuth (B planı), referral programı,
+  Lighthouse CI gate, full i18n (EN/TR), A/B testing framework
+- **Phase 7 — Multi-region:** Cloudflare Geo routing, primary-primary
+  Postgres (Citus/CockroachDB), MinIO → S3 cross-region replication
 
 Detay: README "Sonraki" bölümü.

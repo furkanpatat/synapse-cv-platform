@@ -1,0 +1,114 @@
+# Horizontal Pod Autoscalers for the three runtime tiers.
+#
+# Targets are deliberately conservative — better to scale a pod too
+# early than to discover the LLM-heavy ai-service has melted under a
+# stampede of CV uploads. Tune downwards (raise averageUtilization) once
+# you have real traffic profiles in Grafana.
+#
+# Why CPU + memory together: backend is mostly I/O bound (Postgres,
+# Gemini), so CPU is a fine first signal. ai-service is CPU+memory bound
+# (sentence-transformers loads ~400MB of weights). Frontend is CPU only.
+
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: backend
+  namespace: cv-platform
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: backend
+  minReplicas: 2          # never let backend drop below 2 — single-pod
+                          # restarts during deploy = brief 502s otherwise
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 65   # 65% leaves headroom for GC spikes
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 30   # react quickly to traffic spikes
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 30            # at most double pods every 30 s
+    scaleDown:
+      stabilizationWindowSeconds: 300  # 5 min cooldown — avoids flapping
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 60            # at most -1 pod / minute
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ai-service
+  namespace: cv-platform
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: ai-service
+  minReplicas: 2
+  maxReplicas: 6           # sentence-transformer pods are heavy; cap low
+  metrics:
+    - type: Resource
+      resource: { name: cpu, target: { type: Utilization, averageUtilization: 70 } }
+    - type: Resource
+      resource: { name: memory, target: { type: Utilization, averageUtilization: 80 } }
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60   # transformer pods take ~30 s to
+                                       # warm up — don't oscillate
+    scaleDown:
+      stabilizationWindowSeconds: 600  # 10 min — model loading is expensive
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: frontend
+  namespace: cv-platform
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: frontend
+  minReplicas: 2
+  maxReplicas: 8
+  metrics:
+    - type: Resource
+      resource: { name: cpu, target: { type: Utilization, averageUtilization: 70 } }
+---
+# PodDisruptionBudgets — keep at least 1 pod healthy during voluntary
+# disruption (node drain, cluster upgrade). Together with minReplicas: 2
+# above, this guarantees zero-downtime drains.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: backend-pdb
+  namespace: cv-platform
+spec:
+  minAvailable: 1
+  selector: { matchLabels: { app: backend } }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: ai-service-pdb
+  namespace: cv-platform
+spec:
+  minAvailable: 1
+  selector: { matchLabels: { app: ai-service } }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: frontend-pdb
+  namespace: cv-platform
+spec:
+  minAvailable: 1
+  selector: { matchLabels: { app: frontend } }
